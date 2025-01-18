@@ -11,9 +11,9 @@ services:
     depends_on:
       - postgres
     volumes:
-      - ./src:/app/src
-      - ./prisma:/app/prisma
-      - ./.env:/app/.env
+      - ./src:/app/backend/src
+      - ./prisma:/app/backend/prisma
+      - ./.env:/app/backend/.env
     networks:
       - app-network
 

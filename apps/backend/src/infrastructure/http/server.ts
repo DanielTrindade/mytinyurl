@@ -1,9 +1,9 @@
 import Fastify from 'fastify';
 import swagger from '@fastify/swagger';
 import swaggerUi from '@fastify/swagger-ui';
-import { urlRoutes } from './routes/url.routes';
-import { errorHandler } from './middlewares/errorHandler';
-import { redirectRoutes } from './routes/redirect.route';
+import { urlRoutes } from '@infrastructure/http/routes/url.routes';
+import { errorHandler } from '@infrastructure/http/middlewares/errorHandler';
+import { redirectRoutes } from '@infrastructure/http/routes/redirect.route';
 
 const app = Fastify({
   logger: true

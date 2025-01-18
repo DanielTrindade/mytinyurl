@@ -1,5 +1,5 @@
 import { FastifyRequest, FastifyReply } from 'fastify';
-import { CreateShortUrl } from '@application/usecases/CreateShortUrl';
+import { CreateShortUrl } from '@/application/usecases/CreateShortUrl';
 import { RedirectUrl } from '@application/usecases/RedirectUrl';
 import { GetUrlStats } from '@application/usecases/GetUrlStats';
 import { createUrlSchema } from '@application/dtos/CreateUrlDto';
