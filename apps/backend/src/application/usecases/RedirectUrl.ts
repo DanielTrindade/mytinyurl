@@ -1,4 +1,4 @@
-import { IUrlRepository } from "@/domain/repositories/IUrlRepository";
+import { IUrlRepository } from "@domain/repositories/IUrlRepository";
 
 export class RedirectUrl {
   constructor(private urlRepository: IUrlRepository) {}

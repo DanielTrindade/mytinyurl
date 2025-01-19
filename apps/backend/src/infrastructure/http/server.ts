@@ -1,12 +1,23 @@
 import Fastify from 'fastify';
 import swagger from '@fastify/swagger';
 import swaggerUi from '@fastify/swagger-ui';
-import { urlRoutes } from './routes/url.routes';
-import { errorHandler } from './middlewares/errorHandler';
-import { redirectRoutes } from './routes/redirect.route';
-
+import { urlRoutes } from '@infrastructure/http/routes/url.routes';
+import { errorHandler } from '@infrastructure/http/middlewares/errorHandler';
+import { redirectRoutes } from '@infrastructure/http/routes/redirect.route';
+import cors from '@fastify/cors';
 const app = Fastify({
   logger: true
+});
+
+//cors config
+app.register(cors, {
+  origin: ['http://localhost:5173', 'http://frontend:5173'], // URL do frontend Vite
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'], // Métodos permitidos
+  allowedHeaders: ['Content-Type', 'x-api-key'], // Headers permitidos
+  credentials: true, // Permite envio de cookies/credenciais
+  maxAge: 600, // Cache das preflight requests (em segundos)
+  exposedHeaders: ['X-Total-Count'], // Headers expostos ao cliente
+  preflightContinue: false, // Controle de preflight requests
 });
 
 // Swagger Config

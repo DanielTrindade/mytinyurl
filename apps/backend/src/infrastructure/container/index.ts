@@ -1,10 +1,9 @@
-// src/infrastructure/container/index.ts
 import { PrismaClient } from '@prisma/client';
-import { PrismaUrlRepository } from '../database/repositories/PrismaUrlRepository';
-import { CreateShortUrl } from '../../application/usecases/CreateShortUrl';
-import { RedirectUrl } from '../../application/usecases/RedirectUrl';
-import { GetUrlStats } from '../../application/usecases/GetUrlStats';
-import { UrlController } from '../http/controllers/UrlController';
+import { PrismaUrlRepository } from '@infrastructure/database/repositories/PrismaUrlRepository';
+import { CreateShortUrl } from '@application/usecases/CreateShortUrl';
+import { RedirectUrl } from '@application/usecases/RedirectUrl';
+import { GetUrlStats } from '@application/usecases/GetUrlStats';
+import { UrlController } from '@infrastructure/http/controllers/UrlController';
 
 // Instância do Prisma
 const prisma = new PrismaClient();

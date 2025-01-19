@@ -1,31 +1,15 @@
 {
   "name": "mytinyurl",
-  "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
-  "type": "module",
-  "engines": {
-    "node": "22.x"
-  },
+  "private": true,
+  "workspaces": [
+    "apps/*"
+  ],
   "scripts": {
-    "start": "node dist/infrastructure/http/server.js",
-    "test": "echo \"Error: no test specified\" && exit 1",
-    "dev": "prisma generate && tsx watch src/infrastructure/http/server.ts"
+    "dev": "turbo run dev",
+    "build": "turbo run build",
+    "start": "turbo run start"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
   "devDependencies": {
-    "@types/node": "^22.10.6",
-    "prisma": "^6.2.1",
-    "tsx": "^4.19.2",
-    "typescript": "^5.7.3"
-  },
-  "dependencies": {
-    "@fastify/swagger": "^9.4.1",
-    "@fastify/swagger-ui": "^5.2.1",
-    "@prisma/client": "^6.2.1",
-    "fastify": "^5.2.1",
-    "zod": "^3.24.1"
+    "turbo": "latest"
   }
 }
