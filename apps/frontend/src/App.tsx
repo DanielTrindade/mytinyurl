@@ -7,13 +7,13 @@ function App() {
   const { isDarkMode, toggleTheme } = useTheme()
 
   return (
-    <div className={`min-h-screen transition-colors duration-200 ${
+    <div className={`min-h-screen w-full overflow-x-hidden transition-colors duration-200 flex flex-col ${
       isDarkMode ? 'bg-gray-900' : 'bg-gray-50'
     }`}>
-      <header className={`${
+      <header className={`w-full ${
         isDarkMode ? 'bg-gray-800 shadow-gray-700' : 'bg-white'
       } shadow-sm`}>
-        <div className="max-w-7xl mx-auto px-4 py-4 sm:px-6 lg:px-8 flex justify-between items-center">
+        <div className="w-full max-w-7xl mx-auto px-4 py-4 sm:px-6 lg:px-8 flex justify-between items-center">
           <h1 className={`text-2xl font-bold ${
             isDarkMode ? 'text-white' : 'text-gray-900'
           }`}>
@@ -37,8 +37,8 @@ function App() {
         </div>
       </header>
 
-      <main className="max-w-7xl mx-auto px-4 py-8 sm:px-6 lg:px-8">
-        <div className={`${
+      <main className="flex-grow w-full max-w-7xl mx-auto px-4 py-8 sm:px-6 lg:px-8">
+        <div className={`w-full ${
           isDarkMode ? 'bg-gray-800' : 'bg-white'
         } shadow rounded-lg p-6`}>
           <h2 className={`text-xl font-semibold mb-6 ${
@@ -49,7 +49,7 @@ function App() {
           <UrlShortener />
         </div>
 
-        <div className="mt-12 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="mt-12 w-full grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
           {[
             {
               title: "Rápido e Simples",
@@ -82,10 +82,10 @@ function App() {
         </div>
       </main>
 
-      <footer className={`${
+      <footer className={`w-full ${
         isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'
-      } mt-12 border-t`}>
-        <div className="max-w-7xl mx-auto px-4 py-6 sm:px-6 lg:px-8">
+      } border-t mt-auto`}>
+        <div className="w-full max-w-7xl mx-auto px-4 py-6 sm:px-6 lg:px-8">
           <p className={`text-center ${
             isDarkMode ? 'text-gray-400' : 'text-gray-500'
           }`}>
