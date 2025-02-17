@@ -1,3 +1,17 @@
+import { Result } from "@/shared/core/Result";
+import { ExpirationDate } from "../value-objects/ExpirationDate";
+
+interface UrlProps {
+  id: string;
+  originalUrl: string;
+  shortCode: string;
+  visits: number;
+  createdAt: Date;
+  updatedAt: Date;
+  expiresAt?: ExpirationDate;
+  isActive: boolean;
+}
+
 export class Url {
   private constructor(
     private readonly id: string,
@@ -6,42 +20,63 @@ export class Url {
     private visits: number,
     private readonly createdAt: Date,
     private updatedAt: Date,
-    private readonly expiresAt?: Date,
+    private readonly expiresAt?: ExpirationDate,
     private active: boolean = true
   ) {}
 
   private static getBrasiliaTime(): Date {
-    return new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Sao_Paulo' }));
+    const date = new Date();
+    return new Date(date.getTime() - (date.getTimezoneOffset() * 60000));
   }
 
   public static create(
     originalUrl: string,
     shortCode: string,
-    expiresAt?: Date
-  ): Url {
-    const brasiliaTime = this.getBrasiliaTime();
-    return new Url(
+    expiresAt: Date
+  ): Result<Url> {
+    const expirationResult = ExpirationDate.create(expiresAt);
+    if (expirationResult.isFailure) {
+      return Result.fail<Url>(expirationResult.error);
+    }
+
+    return Result.ok<Url>(new Url(
       crypto.randomUUID(),
       originalUrl,
       shortCode,
       0,
-      brasiliaTime,
-      brasiliaTime,
-      expiresAt // expiresAt já deve vir ajustado do caso de uso
-    );
+      new Date(),
+      new Date(),
+      expirationResult.getValue(),
+      true
+    ));
   }
 
-  public static reconstruct(props: {
-    id: string;
-    originalUrl: string;
-    shortCode: string;
-    visits: number;
-    createdAt: Date;
-    updatedAt: Date;
-    expiresAt?: Date;
-    isActive: boolean;
-  }): Url {
-    return new Url(
+  public static reconstruct(props: UrlProps): Result<Url> {
+    if (!props.id) {
+      return Result.fail<Url>('ID é obrigatório');
+    }
+
+    if (!props.originalUrl) {
+      return Result.fail<Url>('URL original é obrigatória');
+    }
+
+    if (!props.shortCode) {
+      return Result.fail<Url>('Short code é obrigatório');
+    }
+
+    if (props.visits < 0) {
+      return Result.fail<Url>('Número de visitas não pode ser negativo');
+    }
+
+    if (!props.createdAt) {
+      return Result.fail<Url>('Data de criação é obrigatória');
+    }
+
+    if (!props.updatedAt) {
+      return Result.fail<Url>('Data de atualização é obrigatória');
+    }
+
+    return Result.ok<Url>(new Url(
       props.id,
       props.originalUrl,
       props.shortCode,
@@ -50,7 +85,7 @@ export class Url {
       props.updatedAt,
       props.expiresAt,
       props.isActive
-    );
+    ));
   }
 
   public incrementVisits(): void {
@@ -67,24 +102,41 @@ export class Url {
     if (!this.active) return false;
     
     if (this.expiresAt) {
-      const brasiliaTime = Url.getBrasiliaTime();
-      
-      console.log("Horário de Expiração:", this.expiresAt.toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' }));
-      console.log("Horário Atual (Brasília):", brasiliaTime.toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' }));
-      console.log("comparacao", this.expiresAt < brasiliaTime);
-      
-      if (this.expiresAt < brasiliaTime) return false;
+      return !this.expiresAt.isPast();
     }
+
     return true;
   }
 
-  // Getters permanecem os mesmos
-  public getId(): string { return this.id; }
-  public getOriginalUrl(): string { return this.originalUrl; }
-  public getShortCode(): string { return this.shortCode; }
-  public getVisits(): number { return this.visits; }
-  public getCreatedAt(): Date { return this.createdAt; }
-  public getUpdatedAt(): Date { return this.updatedAt; }
-  public getExpiresAt(): Date | undefined { return this.expiresAt; }
-  public isActive(): boolean { return this.active; }
+  public getId(): string {
+    return this.id;
+  }
+
+  public getOriginalUrl(): string {
+    return this.originalUrl;
+  }
+
+  public getShortCode(): string {
+    return this.shortCode;
+  }
+
+  public getVisits(): number {
+    return this.visits;
+  }
+
+  public getCreatedAt(): Date {
+    return this.createdAt;
+  }
+
+  public getUpdatedAt(): Date {
+    return this.updatedAt;
+  }
+
+  public getExpiresAt(): Date | undefined {
+    return this.expiresAt?.getValue();
+  }
+
+  public isActive(): boolean {
+    return this.active;
+  }
 }

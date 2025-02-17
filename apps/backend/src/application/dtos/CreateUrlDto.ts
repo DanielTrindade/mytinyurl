@@ -5,14 +5,20 @@ export const createUrlSchema = z.object({
     .url({ message: 'URL inválida. A URL deve começar com http:// ou https:// e ser um endereço válido' })
     .transform(url => {
       try {
-        return new URL(url).toString();
+        const parsed = new URL(url);
+        if (!['http:', 'https:'].includes(parsed.protocol)) {
+          throw new Error('Protocolo inválido');
+        }
+        return parsed.toString();
       } catch {
-        return url;
+        throw new Error('URL inválida');
       }
-    }),
-  expiresAt: z.string()
-    .datetime({ message: 'Data de expiração inválida. Use o formato ISO 8601 (ex: 2024-01-20T00:00:00Z)' })
-    .optional()
+    })
 });
 
-export type CreateUrlDto = z.infer<typeof createUrlSchema>;
+export interface CreateUrlDto {
+  originalUrl: string;
+  expiresAt?: string;
+}
+
+export type CreateUrlDtoZod = z.infer<typeof createUrlSchema>;

@@ -26,6 +26,7 @@ model Url {
   clicks      Click[]
 
   @@index([shortCode])
+  @@index([visits])
   @@map("urls")
 }
 

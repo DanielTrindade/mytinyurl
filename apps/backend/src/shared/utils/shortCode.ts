@@ -11,23 +11,21 @@ const defaultOptions: GenerateShortCodeOptions = {
 export function generateShortCode(options: GenerateShortCodeOptions = {}): string {
   const config = { ...defaultOptions, ...options };
   
-  // Base de caracteres permitidos (alfanuméricos)
+  // Base de caracteres mais segura
   let chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
   
-  // Remove caracteres excluídos
-  if (config.excludeChars) {
-    for (const char of config.excludeChars) {
-      chars = chars.replace(char, '');
-    }
-  }
-
+  // Remove caracteres confusos
+  chars = chars.replace(/[0O1lI]/g, '');
+  
   let result = '';
   const charsLength = chars.length;
   
-  // Gera o código aleatório
+  // Usa Crypto para maior aleatoriedade
+  const randomValues = new Uint32Array(config.length!);
+  crypto.getRandomValues(randomValues);
+  
   for (let i = 0; i < config.length!; i++) {
-    const randomIndex = Math.floor(Math.random() * charsLength);
-    result += chars[randomIndex];
+    result += chars[randomValues[i] % charsLength];
   }
 
   return result;

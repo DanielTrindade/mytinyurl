@@ -3,8 +3,8 @@ import swagger from '@fastify/swagger';
 import swaggerUi from '@fastify/swagger-ui';
 import { urlRoutes } from '@infrastructure/http/routes/url.routes';
 import { errorHandler } from '@infrastructure/http/middlewares/errorHandler';
-import { redirectRoutes } from '@infrastructure/http/routes/redirect.route';
 import cors from '@fastify/cors';
+import { configureRateLimit } from './middlewares/RateLimit';
 const app = Fastify({
   logger: true
 });
@@ -56,10 +56,8 @@ app.register(swaggerUi, {
   staticCSP: true
 });
 
-// Registra as rotas de redirecionamento
-app.register(redirectRoutes);
 // Registra as rotas da API com prefixo /api
-app.register(urlRoutes, { prefix: '/api' });
+app.register(urlRoutes);
 
 // Error handler global
 app.setErrorHandler(errorHandler);
@@ -71,6 +69,8 @@ app.get('/health', async () => {
 
 const start = async () => {
   try {
+    //registra o rate limit antes das rotas
+    await configureRateLimit(app);
     await app.listen({ port: 3000, host: '0.0.0.0' });
     app.log.info('Server running at http://localhost:3000');
     app.log.info('Documentation available at http://localhost:3000/docs');

@@ -6,10 +6,10 @@ export async function authMiddleware(
 ) {
   const apiKey = request.headers['x-api-key'];
   
-  if (!apiKey || apiKey !== process.env.API_KEY) {
+  if (!apiKey || typeof apiKey !== 'string' || apiKey !== process.env.API_KEY) {
     return reply.status(401).send({
       status: 'error',
-      message: 'Unauthorized'
+      message: 'Não autorizado'
     });
   }
 }

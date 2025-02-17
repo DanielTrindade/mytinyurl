@@ -3,6 +3,7 @@ import { CreateShortUrl } from '@/application/usecases/CreateShortUrl';
 import { RedirectUrl } from '@application/usecases/RedirectUrl';
 import { GetUrlStats } from '@application/usecases/GetUrlStats';
 import { createUrlSchema } from '@application/dtos/CreateUrlDto';
+import { AppError } from '@/shared/errors/AppError';
 
 export class UrlController {
   constructor(
@@ -14,7 +15,13 @@ export class UrlController {
   async create(request: FastifyRequest, reply: FastifyReply) {
     const input = createUrlSchema.parse(request.body);
     
-    const url = await this.createShortUrl.execute(input);
+    const urlResult = await this.createShortUrl.execute(input);
+    
+    if (urlResult.isFailure) {
+      throw new AppError(urlResult.error, 400);
+    }
+  
+    const url = urlResult.getValue();
     
     return reply.status(201).send({
       shortCode: url.getShortCode(),

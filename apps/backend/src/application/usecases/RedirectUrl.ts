@@ -1,3 +1,4 @@
+import { AppError } from "@/shared/errors/AppError";
 import { IUrlRepository } from "@domain/repositories/IUrlRepository";
 
 export class RedirectUrl {
@@ -5,18 +6,17 @@ export class RedirectUrl {
 
   async execute(shortCode: string): Promise<string> {
     const url = await this.urlRepository.findByShortCode(shortCode);
-    console.log("minha url",url);
+    
     if (!url) {
-      throw new Error('URL not found');
+      throw new AppError('URL não encontrada', 404);
     }
-    console.log("verifica a minha url", !url.isValidForRedirect());
+  
     if (!url.isValidForRedirect()) {
-      throw new Error('URL is not active or has expired');
+      throw new AppError('URL expirada ou inativa', 410);
     }
-
     url.incrementVisits();
     await this.urlRepository.save(url);
-
+  
     return url.getOriginalUrl();
   }
 }
