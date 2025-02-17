@@ -128,7 +128,7 @@ export function UrlShortener() {
 							onChange={(e) => setUrl(e.target.value)}
 							placeholder="Coloque sua URL longa aqui..."
 							className={`w-full px-6 py-4 pr-36 
-      border-l border-r border-t border-b rounded-l-md ${
+      border-l border-r border-t border-b rounded-md ${
 				errors.url
 					? "border-red-500 dark:border-red-400 bg-red-50 dark:bg-red-950/50"
 					: "border-gray-200 dark:border-gray-700"
