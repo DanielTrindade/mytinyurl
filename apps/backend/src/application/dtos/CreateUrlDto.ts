@@ -13,7 +13,8 @@ export const createUrlSchema = z.object({
       } catch {
         throw new Error('URL inválida');
       }
-    })
+    }),
+  expiresAt: z.string().datetime().optional()
 });
 
 export interface CreateUrlDto {

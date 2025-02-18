@@ -28,7 +28,6 @@ export class CreateShortUrl {
 
       // Criar a URL
       const expiresAt = data.expiresAt ? new Date(data.expiresAt) : undefined;
-      console.log('expiredAt deve ser modificado aqui??', expiresAt);
       const urlResult = Url.create({
         originalUrl: data.originalUrl,
         shortCode,
