@@ -5,14 +5,12 @@ import { Result } from '@shared/core/Result';
 
 export class UrlMapper {
   static toDomain(raw: PrismaUrl): Result<Url> {
-    let expirationDate: ExpirationDate | undefined;
+    // Garantir que temos uma data de expiração
+    const expirationDate = raw.expiresAt || new Date(Date.now() + 24 * 60 * 60 * 1000);
     
-    if (raw.expiresAt) {
-      const expirationResult = ExpirationDate.create(raw.expiresAt);
-      if (expirationResult.isFailure) {
-        return Result.fail<Url>('Data de expiração inválida');
-      }
-      expirationDate = expirationResult.getValue();
+    const expirationResult = ExpirationDate.create(expirationDate);
+    if (expirationResult.isFailure) {
+      return Result.fail<Url>('Data de expiração inválida');
     }
 
     return Url.reconstruct({
@@ -22,23 +20,21 @@ export class UrlMapper {
       visits: raw.visits,
       createdAt: raw.createdAt,
       updatedAt: raw.updatedAt,
-      expiresAt: expirationDate,
+      expiresAt: expirationResult.getValue(),
       isActive: raw.isActive
     });
   }
 
-  static toPrisma(url: Url): Omit<PrismaUrl, 'clicks'> {
-    const data = {
+  static toPrisma(url: Url): PrismaUrl {
+    return {
       id: url.getId(),
       originalUrl: url.getOriginalUrl(),
       shortCode: url.getShortCode(),
       visits: url.getVisits(),
       createdAt: url.getCreatedAt(),
       updatedAt: url.getUpdatedAt(),
-      expiresAt: url.getExpiresAt() || null,
+      expiresAt: url.getExpiresAt(),
       isActive: url.isActive()
     };
-  
-    return data;
   }
 }

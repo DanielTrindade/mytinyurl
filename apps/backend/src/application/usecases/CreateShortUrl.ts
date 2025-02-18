@@ -26,18 +26,14 @@ export class CreateShortUrl {
         }
       } while (true);
 
-      // Criar ExpirationDate
-      const expirationResult = ExpirationDate.create(data.expiresAt);
-      if (expirationResult.isFailure) {
-        return Result.fail<Url>(expirationResult.error);
-      }
-
       // Criar a URL
-      const urlResult = Url.create(
-        data.originalUrl,
+      const expiresAt = data.expiresAt ? new Date(data.expiresAt) : undefined;
+      console.log('expiredAt deve ser modificado aqui??', expiresAt);
+      const urlResult = Url.create({
+        originalUrl: data.originalUrl,
         shortCode,
-        expirationResult.getValue().getValue()
-      );
+        expiresAt  // será undefined se não foi fornecido
+      });
 
       if (urlResult.isFailure) {
         return Result.fail<Url>(urlResult.error);

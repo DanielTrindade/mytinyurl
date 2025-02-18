@@ -8,8 +8,14 @@ interface UrlProps {
   visits: number;
   createdAt: Date;
   updatedAt: Date;
-  expiresAt?: ExpirationDate;
+  expiresAt: ExpirationDate;
   isActive: boolean;
+}
+
+interface CreateUrlProps {
+  originalUrl: string;
+  shortCode: string;
+  expiresAt?: Date;
 }
 
 export class Url {
@@ -20,29 +26,21 @@ export class Url {
     private visits: number,
     private readonly createdAt: Date,
     private updatedAt: Date,
-    private readonly expiresAt?: ExpirationDate,
+    private readonly expiresAt: ExpirationDate,
     private active: boolean = true
   ) {}
 
-  private static getBrasiliaTime(): Date {
-    const date = new Date();
-    return new Date(date.getTime() - (date.getTimezoneOffset() * 60000));
-  }
-
-  public static create(
-    originalUrl: string,
-    shortCode: string,
-    expiresAt: Date
-  ): Result<Url> {
-    const expirationResult = ExpirationDate.create(expiresAt);
+  public static create(props: CreateUrlProps): Result<Url> {
+    const expirationResult = ExpirationDate.create(props.expiresAt);
+    
     if (expirationResult.isFailure) {
       return Result.fail<Url>(expirationResult.error);
     }
 
     return Result.ok<Url>(new Url(
       crypto.randomUUID(),
-      originalUrl,
-      shortCode,
+      props.originalUrl,
+      props.shortCode,
       0,
       new Date(),
       new Date(),
@@ -52,30 +50,6 @@ export class Url {
   }
 
   public static reconstruct(props: UrlProps): Result<Url> {
-    if (!props.id) {
-      return Result.fail<Url>('ID é obrigatório');
-    }
-
-    if (!props.originalUrl) {
-      return Result.fail<Url>('URL original é obrigatória');
-    }
-
-    if (!props.shortCode) {
-      return Result.fail<Url>('Short code é obrigatório');
-    }
-
-    if (props.visits < 0) {
-      return Result.fail<Url>('Número de visitas não pode ser negativo');
-    }
-
-    if (!props.createdAt) {
-      return Result.fail<Url>('Data de criação é obrigatória');
-    }
-
-    if (!props.updatedAt) {
-      return Result.fail<Url>('Data de atualização é obrigatória');
-    }
-
     return Result.ok<Url>(new Url(
       props.id,
       props.originalUrl,
@@ -86,26 +60,6 @@ export class Url {
       props.expiresAt,
       props.isActive
     ));
-  }
-
-  public incrementVisits(): void {
-    this.visits++;
-    this.updatedAt = Url.getBrasiliaTime();
-  }
-
-  public deactivate(): void {
-    this.active = false;
-    this.updatedAt = Url.getBrasiliaTime();
-  }
-
-  public isValidForRedirect(): boolean {
-    if (!this.active) return false;
-    
-    if (this.expiresAt) {
-      return !this.expiresAt.isPast();
-    }
-
-    return true;
   }
 
   public getId(): string {
@@ -132,11 +86,26 @@ export class Url {
     return this.updatedAt;
   }
 
-  public getExpiresAt(): Date | undefined {
-    return this.expiresAt?.getValue();
+  public getExpiresAt(): Date {
+    return this.expiresAt.getValue();
   }
 
   public isActive(): boolean {
     return this.active;
+  }
+
+  public incrementVisits(): void {
+    this.visits++;
+    this.updatedAt = new Date();
+  }
+
+  public deactivate(): void {
+    this.active = false;
+    this.updatedAt = new Date();
+  }
+
+  public isValidForRedirect(): boolean {
+    if (!this.active) return false;
+    return !this.expiresAt.isPast();
   }
 }

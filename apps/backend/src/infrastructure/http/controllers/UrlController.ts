@@ -35,8 +35,27 @@ export class UrlController {
     Params: { shortCode: string }
   }>, reply: FastifyReply) {
     const { shortCode } = request.params;
-    const originalUrl = await this.redirectUrl.execute(shortCode);
-    return reply.status(301).redirect(originalUrl);
+    const result = await this.redirectUrl.execute(shortCode);
+
+    // Define os headers de segurança
+    reply.header('X-Frame-Options', 'DENY');
+    reply.header('X-Content-Type-Options', 'nosniff');
+    reply.header('Referrer-Policy', 'strict-origin-when-cross-origin');
+
+    // Define os headers de cache baseado na política de cache
+    if (result.shouldCache && result.cacheDuration) {
+      reply.header('Cache-Control', `public, max-age=${result.cacheDuration}`);
+      const expiresDate = new Date(Date.now() + result.cacheDuration * 1000);
+      reply.header('Expires', expiresDate.toUTCString());
+    } else {
+      reply.header('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+      reply.header('Pragma', 'no-cache');
+      reply.header('Expires', '0');
+    }
+
+    return reply.status(302)
+      .header('Location', result.url)
+      .send();
   }
 
   async getStats(request: FastifyRequest<{

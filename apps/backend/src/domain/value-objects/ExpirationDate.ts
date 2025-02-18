@@ -1,4 +1,6 @@
+// src/domain/value-objects/ExpirationDate.ts
 import { Result } from '@shared/core/Result';
+
 export class ExpirationDate {
   private constructor(private readonly value: Date) {}
 
@@ -10,7 +12,8 @@ export class ExpirationDate {
       return Result.ok(new ExpirationDate(future));
     }
 
-    const expirationDate = new Date(date);
+    // Converte para Date se for string
+    const expirationDate = typeof date === 'string' ? new Date(date) : date;
 
     // Verifica se é uma data válida
     if (isNaN(expirationDate.getTime())) {
@@ -31,5 +34,12 @@ export class ExpirationDate {
 
   public isPast(): boolean {
     return this.value < new Date();
+  }
+
+  public isNearExpiration(): boolean {
+    const now = new Date();
+    const timeUntilExpiration = this.value.getTime() - now.getTime();
+    const ONE_HOUR = 3600000; // 1 hora em milissegundos
+    return timeUntilExpiration < ONE_HOUR;
   }
 }
