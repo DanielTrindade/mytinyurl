@@ -4,20 +4,26 @@ import swaggerUi from '@fastify/swagger-ui';
 import { urlRoutes } from '@infrastructure/http/routes/url.routes';
 import { errorHandler } from '@infrastructure/http/middlewares/errorHandler';
 import { redirectRoutes } from '@infrastructure/http/routes/redirect.route';
+import { container } from '@infrastructure/container';
 import cors from '@fastify/cors';
+
 const app = Fastify({
   logger: true
 });
 
-//cors config
+// CORS config — environment-based origins
+const corsOrigins = process.env.CORS_ORIGINS
+  ? process.env.CORS_ORIGINS.split(',').map(o => o.trim())
+  : ['http://localhost:5173', 'http://frontend:5173'];
+
 app.register(cors, {
-  origin: ['http://localhost:5173', 'http://frontend:5173'], // URL do frontend Vite
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'], // Métodos permitidos
-  allowedHeaders: ['Content-Type', 'x-api-key'], // Headers permitidos
-  credentials: true, // Permite envio de cookies/credenciais
-  maxAge: 600, // Cache das preflight requests (em segundos)
-  exposedHeaders: ['X-Total-Count'], // Headers expostos ao cliente
-  preflightContinue: false, // Controle de preflight requests
+  origin: corsOrigins,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'x-api-key'],
+  credentials: true,
+  maxAge: 600,
+  exposedHeaders: ['X-Total-Count'],
+  preflightContinue: false,
 });
 
 // Swagger Config
@@ -29,11 +35,12 @@ app.register(swagger, {
       version: '1.0.0'
     },
     servers: [{
-      url: 'http://localhost:3000',
-      description: 'Desenvolvimento'
+      url: process.env.APP_URL || 'http://localhost:3000',
+      description: process.env.NODE_ENV === 'production' ? 'Produção' : 'Desenvolvimento'
     }],
     tags: [
-      { name: 'urls', description: 'Endpoints de URLs' }
+      { name: 'urls', description: 'Endpoints de URLs' },
+      { name: 'redirect', description: 'Redirecionamento de URLs' }
     ],
     components: {
       securitySchemes: {
@@ -69,13 +76,31 @@ app.get('/health', async () => {
   return { status: 'ok' };
 });
 
+// Graceful shutdown
+const gracefulShutdown = async (signal: string) => {
+  app.log.info(`Received ${signal}. Starting graceful shutdown...`);
+  try {
+    await app.close();
+    await container.prisma.$disconnect();
+    app.log.info('Graceful shutdown complete.');
+    process.exit(0);
+  } catch (err) {
+    app.log.error(`Error during shutdown: ${err instanceof Error ? err.message : String(err)}`);
+    process.exit(1);
+  }
+};
+
+process.on('SIGINT', () => gracefulShutdown('SIGINT'));
+process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+
 const start = async () => {
   try {
-    await app.listen({ port: 3000, host: '0.0.0.0' });
-    app.log.info('Server running at http://localhost:3000');
-    app.log.info('Documentation available at http://localhost:3000/docs');
+    const port = Number(process.env.PORT) || 3000;
+    await app.listen({ port, host: '0.0.0.0' });
+    app.log.info(`Server running at http://localhost:${port}`);
+    app.log.info(`Documentation available at http://localhost:${port}/docs`);
   } catch (err) {
-    app.log.error(err);
+    app.log.error(err instanceof Error ? err.message : String(err));
     process.exit(1);
   }
 };

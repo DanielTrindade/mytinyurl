@@ -8,26 +8,22 @@ export class Url {
     private updatedAt: Date,
     private readonly expiresAt?: Date,
     private active: boolean = true
-  ) {}
-
-  private static getBrasiliaTime(): Date {
-    return new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Sao_Paulo' }));
-  }
+  ) { }
 
   public static create(
     originalUrl: string,
     shortCode: string,
     expiresAt?: Date
   ): Url {
-    const brasiliaTime = this.getBrasiliaTime();
+    const now = new Date();
     return new Url(
       crypto.randomUUID(),
       originalUrl,
       shortCode,
       0,
-      brasiliaTime,
-      brasiliaTime,
-      expiresAt // expiresAt já deve vir ajustado do caso de uso
+      now,
+      now,
+      expiresAt
     );
   }
 
@@ -55,30 +51,25 @@ export class Url {
 
   public incrementVisits(): void {
     this.visits++;
-    this.updatedAt = Url.getBrasiliaTime();
+    this.updatedAt = new Date();
   }
 
   public deactivate(): void {
     this.active = false;
-    this.updatedAt = Url.getBrasiliaTime();
+    this.updatedAt = new Date();
   }
 
   public isValidForRedirect(): boolean {
     if (!this.active) return false;
-    
+
     if (this.expiresAt) {
-      const brasiliaTime = Url.getBrasiliaTime();
-      
-      console.log("Horário de Expiração:", this.expiresAt.toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' }));
-      console.log("Horário Atual (Brasília):", brasiliaTime.toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' }));
-      console.log("comparacao", this.expiresAt < brasiliaTime);
-      
-      if (this.expiresAt < brasiliaTime) return false;
+      const now = new Date();
+      if (this.expiresAt < now) return false;
     }
     return true;
   }
 
-  // Getters permanecem os mesmos
+  // Getters
   public getId(): string { return this.id; }
   public getOriginalUrl(): string { return this.originalUrl; }
   public getShortCode(): string { return this.shortCode; }

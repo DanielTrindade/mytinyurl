@@ -9,13 +9,13 @@ export class UrlController {
     private createShortUrl: CreateShortUrl,
     private redirectUrl: RedirectUrl,
     private getUrlStats: GetUrlStats
-  ) {}
+  ) { }
 
   async create(request: FastifyRequest, reply: FastifyReply) {
     const input = createUrlSchema.parse(request.body);
-    
+
     const url = await this.createShortUrl.execute(input);
-    
+
     return reply.status(201).send({
       shortCode: url.getShortCode(),
       shortUrl: `${process.env.APP_URL}/${url.getShortCode()}`,
@@ -29,16 +29,16 @@ export class UrlController {
   }>, reply: FastifyReply) {
     const { shortCode } = request.params;
     const originalUrl = await this.redirectUrl.execute(shortCode);
-    return reply.status(301).redirect(originalUrl);
+    return reply.status(302).redirect(originalUrl);
   }
 
   async getStats(request: FastifyRequest<{
     Params: { shortCode: string }
   }>, reply: FastifyReply) {
     const { shortCode } = request.params;
-    
+
     const stats = await this.getUrlStats.execute(shortCode);
-    
+
     return reply.send(stats);
   }
 }
