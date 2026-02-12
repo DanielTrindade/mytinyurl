@@ -1,6 +1,6 @@
 import Fastify from 'fastify';
 import swagger from '@fastify/swagger';
-import swaggerUi from '@fastify/swagger-ui';
+import ScalarApiReference from '@scalar/fastify-api-reference';
 import { urlRoutes } from '@infrastructure/http/routes/url.routes';
 import { errorHandler } from '@infrastructure/http/middlewares/errorHandler';
 import { redirectRoutes } from '@infrastructure/http/routes/redirect.route';
@@ -54,13 +54,11 @@ app.register(swagger, {
   }
 });
 
-app.register(swaggerUi, {
+app.register(ScalarApiReference, {
   routePrefix: '/docs',
-  uiConfig: {
-    docExpansion: 'list',
-    deepLinking: false
+  configuration: {
+    title: 'MyTinyURL API',
   },
-  staticCSP: true
 });
 
 // Registra as rotas de redirecionamento
