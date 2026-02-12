@@ -39,15 +39,8 @@ export class CreateShortUrl {
       }
     } while (true);
 
-    // BUG 1 fix: Use UTC dates, no more toLocaleString timezone hacks
-    let expiresAt: Date;
-
-    if (data.expiresAt) {
-      expiresAt = new Date(data.expiresAt);
-    } else {
-      // Default: 24 hours from now
-      expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
-    }
+    const expirationDays = Number(process.env.URL_EXPIRATION_DAYS) || 1; // Default: 1 day
+    const expiresAt = new Date(Date.now() + expirationDays * 24 * 60 * 60 * 1000);
 
     const url = Url.create(
       data.originalUrl,

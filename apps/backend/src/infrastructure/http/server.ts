@@ -1,3 +1,4 @@
+import 'dotenv/config';
 import Fastify from 'fastify';
 import swagger from '@fastify/swagger';
 import ScalarApiReference from '@scalar/fastify-api-reference';

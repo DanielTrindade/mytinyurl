@@ -24,11 +24,7 @@ export async function urlRoutes(app: FastifyInstance) {
             format: 'uri',
             description: 'URL que será encurtada (deve começar com http:// ou https://)'
           },
-          expiresAt: {
-            type: 'string',
-            format: 'date-time',
-            description: 'Data de expiração da URL (opcional)'
-          }
+
         }
       },
       response: {

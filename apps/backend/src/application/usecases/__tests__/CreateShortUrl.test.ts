@@ -33,6 +33,8 @@ describe('CreateShortUrl UseCase', () => {
         mockRepo = createMockRepository();
         useCase = new CreateShortUrl(mockRepo);
         mockedGenerateShortCode.mockReturnValue('mocked1');
+        process.env.APP_URL = ''; // Reset APP_URL
+        delete process.env.URL_EXPIRATION_DAYS; // Reset expiration
     });
 
     it('should create a short URL successfully', async () => {
@@ -47,7 +49,7 @@ describe('CreateShortUrl UseCase', () => {
         expect(mockRepo.create).toHaveBeenCalledOnce();
     });
 
-    it('should set default 24h expiration when none is provided', async () => {
+    it('should set default 1 day expiration when env var is missing', async () => {
         const before = Date.now();
         const result = await useCase.execute({
             originalUrl: 'https://example.com',
@@ -57,20 +59,28 @@ describe('CreateShortUrl UseCase', () => {
         const expiresAt = result.getExpiresAt();
         expect(expiresAt).toBeDefined();
 
-        const expected24h = 24 * 60 * 60 * 1000;
+        const expected1Day = 1 * 24 * 60 * 60 * 1000;
         const diff = expiresAt!.getTime() - before;
-        expect(diff).toBeGreaterThanOrEqual(expected24h - 100);
-        expect(diff).toBeLessThanOrEqual(expected24h + (after - before) + 100);
+
+        // Check range with small buffer
+        expect(diff).toBeGreaterThanOrEqual(expected1Day - 100);
+        expect(diff).toBeLessThanOrEqual(expected1Day + (after - before) + 100);
     });
 
-    it('should use provided expiresAt when given', async () => {
-        const customExpiry = new Date('2030-01-01T00:00:00.000Z');
+    it('should use URL_EXPIRATION_DAYS from env', async () => {
+        process.env.URL_EXPIRATION_DAYS = '7'; // 7 days
+
+        const before = Date.now();
         const result = await useCase.execute({
             originalUrl: 'https://example.com',
-            expiresAt: customExpiry.toISOString(),
         });
+        const after = Date.now();
+        const expiresAt = result.getExpiresAt();
+        const expected7Days = 7 * 24 * 60 * 60 * 1000;
+        const diff = expiresAt!.getTime() - before;
 
-        expect(result.getExpiresAt()!.getTime()).toBe(customExpiry.getTime());
+        expect(diff).toBeGreaterThanOrEqual(expected7Days - 100);
+        expect(diff).toBeLessThanOrEqual(expected7Days + (after - before) + 100);
     });
 
     it('should retry when short code already exists', async () => {
@@ -105,8 +115,6 @@ describe('CreateShortUrl UseCase', () => {
     });
 
     it('should reject self-referential URLs', async () => {
-        // Set APP_URL environment variable
-        const originalAppUrl = process.env.APP_URL;
         process.env.APP_URL = 'http://localhost:3000';
 
         await expect(
@@ -116,12 +124,9 @@ describe('CreateShortUrl UseCase', () => {
         await expect(
             useCase.execute({ originalUrl: 'http://localhost:3000/something' })
         ).rejects.toThrow('Cannot shorten URLs pointing to this service');
-
-        process.env.APP_URL = originalAppUrl;
     });
 
     it('should allow URLs with different hostname than APP_URL', async () => {
-        const originalAppUrl = process.env.APP_URL;
         process.env.APP_URL = 'http://localhost:3000';
 
         const result = await useCase.execute({
@@ -129,8 +134,6 @@ describe('CreateShortUrl UseCase', () => {
         });
 
         expect(result.getOriginalUrl()).toBe('https://google.com');
-
-        process.env.APP_URL = originalAppUrl;
     });
 
     it('should call repository.exists to check for collisions', async () => {

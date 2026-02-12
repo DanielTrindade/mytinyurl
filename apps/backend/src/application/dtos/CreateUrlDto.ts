@@ -10,9 +10,6 @@ export const createUrlSchema = z.object({
         return url;
       }
     }),
-  expiresAt: z.string()
-    .datetime({ message: 'Data de expiração inválida. Use o formato ISO 8601 (ex: 2024-01-20T00:00:00Z)' })
-    .optional()
 });
 
 export type CreateUrlDto = z.infer<typeof createUrlSchema>;
