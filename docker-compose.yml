@@ -1,76 +1,49 @@
 services:
   backend:
-    build: 
-      context: ./apps/backend
-      dockerfile: Dockerfile
+    build:
+      context: .
+      dockerfile: apps/backend/Dockerfile
+      target: runner
     ports:
       - "3000:3000"
-      - "5555:5555"
-    env_file:
-      - ./apps/backend/.env
     environment:
       - DATABASE_URL=${DATABASE_URL}
+      - PORT=3000
+      - APP_URL=${APP_URL}
+      - CORS_ORIGINS=${CORS_ORIGINS}
     depends_on:
       - postgres
-    volumes:
-      - ./apps/backend/src:/app/backend/src
-      - ./apps/backend/prisma:/app/backend/prisma
-      - ./apps/backend/.env:/app/backend/.env
     networks:
-      - app-network
+      - mytinyurl-network
 
   frontend:
     build:
-      context: ./apps/frontend
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: apps/frontend/Dockerfile
+      target: runner
     ports:
-      - "5173:5173"
-    env_file:
-      - ./apps/frontend/.env
-    environment:
-      - VITE_API_URL=${VITE_API_URL}
-    volumes:
-      - ./apps/frontend/src:/app/frontend/src
-    depends_on:
-      - backend
+      - "80:80"
     networks:
-      - app-network
+      - mytinyurl-network
 
   postgres:
     image: postgres:16-alpine
-    ports:
-      - "5432:5432"
-    env_file:
-      - ./apps/backend/.env
+    restart: always
     environment:
-      - POSTGRES_USER=${POSTGRES_USER}
-      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
-      - POSTGRES_DB=${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER:-user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-password}
+      POSTGRES_DB: ${POSTGRES_DB:-mytinyurl}
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - postgres_data_prod:/var/lib/postgresql/data
     networks:
-      - app-network
-
-  pgadmin:
-    image: dpage/pgadmin4
-    ports:
-      - "5050:80"
-    env_file:
-      - ./apps/backend/.env
-    environment:
-      - PGADMIN_DEFAULT_EMAIL=${PGADMIN_DEFAULT_EMAIL}
-      - PGADMIN_DEFAULT_PASSWORD=${PGADMIN_DEFAULT_PASSWORD}
-    volumes:
-      - pgadmin_data:/var/lib/pgadmin
-    depends_on:
-      - postgres
-    networks:
-      - app-network
+      - mytinyurl-network
+    # Only start postgres if explicitly enabled or needed.
+    # But usually in docker-compose, we include it.
+    # If using external DB, user can remove this service or just not use it.
 
 volumes:
-  postgres_data:
-  pgadmin_data:
+  postgres_data_prod:
 
 networks:
-  app-network:
+  mytinyurl-network:
     driver: bridge

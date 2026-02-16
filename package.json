@@ -1,8 +1,10 @@
 {
   "name": "mytinyurl",
   "private": true,
+  "packageManager": "npm@11.6.0",
   "workspaces": [
-    "apps/*"
+    "apps/*",
+    "packages/*"
   ],
   "scripts": {
     "dev": "turbo run dev",

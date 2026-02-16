@@ -1,13 +1,39 @@
-FROM node:22-alpine
+FROM node:22-alpine AS base
+ENV PNPM_HOME="/pnpm"
+ENV PATH="$PNPM_HOME:$PATH"
+RUN npm install -g turbo
 
-WORKDIR /app/frontend
+FROM base AS pruner
+WORKDIR /app
+COPY . .
+RUN turbo prune --scope=@mytinyurl/frontend --docker
 
-COPY package*.json ./
-
+FROM base AS dev-deps
+WORKDIR /app
+COPY --from=pruner /app/out/json/ .
+COPY --from=pruner /app/out/package-lock.json ./package-lock.json
 RUN npm install
 
-COPY . .
+FROM base AS prod-deps
+WORKDIR /app
+COPY --from=pruner /app/out/json/ .
+COPY --from=pruner /app/out/package-lock.json ./package-lock.json
+RUN npm install --omit=dev
 
-EXPOSE 5173
+FROM base AS builder
+WORKDIR /app
+COPY --from=dev-deps /app/ .
+COPY --from=pruner /app/out/full/ .
+RUN turbo run build --filter=@mytinyurl/frontend...
 
-CMD ["npm", "run", "dev", "--", "--host"]
+FROM nginx:alpine AS runner
+COPY --from=builder /app/apps/frontend/dist /usr/share/nginx/html
+COPY apps/frontend/nginx.conf /etc/nginx/conf.d/default.conf
+EXPOSE 80
+CMD ["nginx", "-g", "daemon off;"]
+
+FROM base AS dev
+WORKDIR /app
+COPY --from=dev-deps /app/ .
+# The source code will be mounted at /app/apps/frontend
+CMD ["turbo", "run", "dev", "--filter=@mytinyurl/frontend", "--", "--host", "0.0.0.0"]

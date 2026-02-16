@@ -1,5 +1,5 @@
 {
-  "name": "mytinyurl",
+  "name": "@mytinyurl/backend",
   "version": "1.0.0",
   "description": "",
   "main": "index.js",
@@ -8,25 +8,35 @@
     "node": "22.x"
   },
   "scripts": {
+    "build": "tsc && tsc-alias",
     "start": "node dist/infrastructure/http/server.js",
-    "test": "echo \"Error: no test specified\" && exit 1",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
     "dev": "prisma generate && tsx watch src/infrastructure/http/server.ts"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "devDependencies": {
-    "@types/node": "^22.10.6",
-    "prisma": "^6.2.1",
+    "@types/node": "^22.19.11",
+    "@types/pg": "^8.16.0",
+    "@vitest/coverage-v8": "^4.0.18",
+    "prisma": "^7.4.0",
+    "tsc-alias": "^1.8.16",
     "tsx": "^4.19.2",
-    "typescript": "^5.7.3"
+    "typescript": "^5.7.3",
+    "vitest": "^4.0.18"
   },
   "dependencies": {
     "@fastify/cors": "^10.0.2",
     "@fastify/swagger": "^9.4.1",
-    "@fastify/swagger-ui": "^5.2.1",
-    "@prisma/client": "^6.2.1",
+    "@prisma/adapter-pg": "^7.4.0",
+    "@prisma/client": "^7.4.0",
+    "@scalar/fastify-api-reference": "^1.44.17",
+    "dotenv": "^17.2.4",
     "fastify": "^5.2.1",
+    "pg": "^8.18.0",
     "zod": "^3.24.1"
   }
 }

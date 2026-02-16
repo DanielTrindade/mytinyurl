@@ -11,21 +11,6 @@ interface IParams {
 export async function urlRoutes(app: FastifyInstance) {
   const urlController = container.urlController;
 
-  // Public routes
-
-  app.get<IParams>('/:shortCode', {
-    schema: {
-      tags: ['urls'],
-      description: 'Redireciona para a URL original',
-      params: {
-        type: 'object',
-        properties: {
-          shortCode: { type: 'string' }
-        }
-      }
-    }
-  }, urlController.redirect.bind(urlController));
-
   app.post('/shorten', {
     schema: {
       tags: ['urls'],
@@ -34,16 +19,12 @@ export async function urlRoutes(app: FastifyInstance) {
         type: 'object',
         required: ['originalUrl'],
         properties: {
-          originalUrl: { 
-            type: 'string', 
+          originalUrl: {
+            type: 'string',
             format: 'uri',
             description: 'URL que será encurtada (deve começar com http:// ou https://)'
           },
-          expiresAt: { 
-            type: 'string', 
-            format: 'date-time',
-            description: 'Data de expiração da URL (opcional)'
-          }
+
         }
       },
       response: {

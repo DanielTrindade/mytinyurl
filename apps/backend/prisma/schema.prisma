@@ -6,23 +6,23 @@
 
 generator client {
   provider = "prisma-client-js"
+  output   = "../src/generated/prisma"
 }
 
 datasource db {
   provider = "postgresql"
-  url      = env("DATABASE_URL")
 }
 
 //Vai guardar as nossas urls
 model Url {
-  id          String      @id @default(uuid())
-  originalUrl String      @db.Text
-  shortCode   String      @unique @db.VarChar(10)
-  visits      Int         @default(0)
-  createdAt   DateTime    @default(now())
-  updatedAt   DateTime    @updatedAt
+  id          String    @id @default(uuid())
+  originalUrl String    @db.Text
+  shortCode   String    @unique @db.VarChar(10)
+  visits      Int       @default(0)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
   expiresAt   DateTime?
-  isActive    Boolean     @default(true)
+  isActive    Boolean   @default(true)
   clicks      Click[]
 
   @@index([shortCode])
@@ -31,10 +31,10 @@ model Url {
 
 //irá guardar informações sobre o click na url
 model Click {
-  id        String    @id @default(uuid())
-  url       Url       @relation(fields: [urlId], references: [id])
+  id        String   @id @default(uuid())
+  url       Url      @relation(fields: [urlId], references: [id])
   urlId     String
-  createdAt DateTime  @default(now())
+  createdAt DateTime @default(now())
 
   @@index([urlId])
   @@index([createdAt])

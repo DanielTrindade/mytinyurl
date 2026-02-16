@@ -1,4 +1,4 @@
-import { Url as PrismaUrl } from '@prisma/client';
+import { Url as PrismaUrl } from '@/generated/prisma/client';
 import { Url } from '@domain/entities/Url';
 
 export class UrlMapper {

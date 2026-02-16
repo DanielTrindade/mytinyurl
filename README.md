@@ -1,10 +1,22 @@
-# MyTinyURL - Monorepo
+# MyTinyURL
+
+## Desenvolvimento Local
+
+Para instruções detalhadas de como rodar o projeto localmente com Docker, consulte [docs/local_development.md](docs/local_development.md).
+
+Para rodar rapidamente em modo dev:
+
+```bash
+docker-compose -f docker-compose.dev.yml up
+```
+
+- Monorepo
 
 Este é um projeto monorepo contendo um serviço de encurtamento de URLs com backend em Node.js/Fastify e frontend em React.
 
 ## 📁 Estrutura do Projeto
 
-```
+```text
 mytinyurl/
 ├── apps/
 │   ├── backend/         # API em Fastify
@@ -16,6 +28,7 @@ mytinyurl/
 ## 🚀 Tecnologias Utilizadas
 
 ### Backend
+
 - Node.js
 - Fastify
 - TypeScript
@@ -23,6 +36,7 @@ mytinyurl/
 - PostgreSQL
 
 ### Frontend
+
 - React
 - TypeScript
 - Tailwind CSS
@@ -31,29 +45,33 @@ mytinyurl/
 ## ⚙️ Como Executar
 
 1. Clone o repositório:
+
 ```bash
 git clone [url-do-repo]
 cd mytinyurl
 ```
 
-2. Configure o ambiente:
+1. Configure o ambiente:
+
 ```bash
 # Na pasta backend
 cd apps/backend
 cp .env.example .env
 ```
 
-3. Inicie os containers:
+1. Inicie os containers:
+
 ```bash
 # Na raiz do projeto
 docker compose up -d
 ```
 
-4. Acesse:
-- Frontend: http://localhost:5173
-- Backend: http://localhost:3000
-- Swagger: http://localhost:3000/docs
-- pgAdmin: http://localhost:5050
+1. Acesse:
+
+- Frontend: <http://localhost:5173>
+- Backend: <http://localhost:3000>
+- Swagger: <http://localhost:3000/docs>
+- pgAdmin: <http://localhost:5050>
 
 ## 📝 Funcionalidades
 
