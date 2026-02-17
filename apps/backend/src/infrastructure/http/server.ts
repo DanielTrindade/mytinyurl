@@ -7,9 +7,20 @@ import { errorHandler } from '@infrastructure/http/middlewares/errorHandler';
 import { redirectRoutes } from '@infrastructure/http/routes/redirect.route';
 import { container } from '@infrastructure/container';
 import cors from '@fastify/cors';
+import helmet from '@fastify/helmet';
+import rateLimit from '@fastify/rate-limit';
 
 const app = Fastify({
   logger: true
+});
+
+// Security Headers
+app.register(helmet);
+
+// Rate Limiting
+app.register(rateLimit, {
+  max: 100,
+  timeWindow: '1 minute'
 });
 
 // CORS config — environment-based origins
