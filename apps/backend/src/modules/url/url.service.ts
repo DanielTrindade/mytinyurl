@@ -1,6 +1,6 @@
 import { eq, sql } from 'drizzle-orm';
-import { db } from '../../db';
-import { urls, type Url, type NewUrl } from '../../db/schema';
+import { urls, type Url } from '../../db/schema';
+import { shardRouter } from '../../db';
 import { generateShortCode } from '../../shared/short-code';
 import { NotFoundError, GoneError } from '../../shared/errors';
 import { cacheService } from '../../cache/redis';
@@ -9,12 +9,18 @@ import { env } from '../../config/env';
 export class UrlService {
     /**
      * Creates a new shortened URL.
-     * Uses Snowflake ID → base62 for short code (no collision check needed).
-     * Uses write-through: stores in DB and populates cache immediately.
+     * 1. Generate Snowflake short code
+     * 2. Determine target shard via consistent hashing
+     * 3. Insert into the correct shard
+     * 4. Write-through to Redis cache
      */
     async createShortUrl(originalUrl: string): Promise<Url> {
-        // Snowflake guarantees uniqueness — no DB lookup required
         const shortCode = generateShortCode();
+
+        // Shard Router determines which PostgreSQL instance
+        const db = shardRouter.getDb(shortCode);
+        const shardIndex = shardRouter.getShardIndex(shortCode);
+        console.log(`📝 Creating URL on shard ${shardIndex}: ${shortCode}`);
 
         const expiresAt = new Date();
         expiresAt.setHours(expiresAt.getHours() + env.DEFAULT_EXPIRATION_HOURS);
@@ -28,7 +34,7 @@ export class UrlService {
             })
             .returning();
 
-        // Write-through: populate cache on creation
+        // Write-through: populate cache
         const ttlSeconds = env.DEFAULT_EXPIRATION_HOURS * 60 * 60;
         await cacheService.set(shortCode, originalUrl, ttlSeconds);
 
@@ -37,16 +43,14 @@ export class UrlService {
 
     /**
      * Finds a URL by its short code and redirects.
-     * Implements Cache-Aside (Lazy Loading) pattern:
-     * 1. Check Redis cache first
-     * 2. On HIT → return immediately (skip DB query entirely)
-     * 3. On MISS → query DB → store in cache → return
+     * Cache-Aside pattern + Shard-aware DB lookup.
      */
     async redirectUrl(shortCode: string): Promise<string> {
         // 1. Check cache first
         const cached = await cacheService.get(shortCode);
         if (cached) {
-            // Cache HIT — fire-and-forget visit increment
+            // Cache HIT — fire-and-forget visit increment on correct shard
+            const db = shardRouter.getDb(shortCode);
             db.update(urls)
                 .set({
                     visits: sql`${urls.visits} + 1`,
@@ -59,7 +63,11 @@ export class UrlService {
             return cached;
         }
 
-        // 2. Cache MISS — query database
+        // 2. Cache MISS — query the correct shard
+        const db = shardRouter.getDb(shortCode);
+        const shardIndex = shardRouter.getShardIndex(shortCode);
+        console.log(`🔍 Reading from shard ${shardIndex}: ${shortCode}`);
+
         const url = await db.query.urls.findFirst({
             where: eq(urls.shortCode, shortCode),
         });
@@ -76,7 +84,7 @@ export class UrlService {
             throw new GoneError('This URL has expired');
         }
 
-        // 3. Populate cache for next time
+        // 3. Populate cache
         const ttlSeconds = url.expiresAt
             ? Math.max(1, Math.floor((url.expiresAt.getTime() - Date.now()) / 1000))
             : env.DEFAULT_EXPIRATION_HOURS * 60 * 60;
@@ -96,9 +104,11 @@ export class UrlService {
     }
 
     /**
-     * Gets URL statistics by short code (always from DB for accuracy).
+     * Gets URL statistics by short code — always from the correct shard.
      */
     async getUrlStats(shortCode: string): Promise<Url> {
+        const db = shardRouter.getDb(shortCode);
+
         const url = await db.query.urls.findFirst({
             where: eq(urls.shortCode, shortCode),
         });

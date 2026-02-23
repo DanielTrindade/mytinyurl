@@ -6,23 +6,26 @@ services:
     ports:
       - "3000:3000"
     environment:
-      - DATABASE_URL=postgresql://user:password@postgres:5432/mytinyurl
+      - DATABASE_URLS=postgresql://user:password@postgres-shard1:5432/mytinyurl,postgresql://user:password@postgres-shard2:5432/mytinyurl
       - REDIS_URL=redis://redis:6379
       - PORT=3000
       - APP_URL=http://localhost:3000
       - CORS_ORIGINS=http://localhost:5173
       - DEFAULT_EXPIRATION_HOURS=24
+      - MACHINE_ID=1
     volumes:
       - ./apps/backend/src:/app/src
     depends_on:
-      postgres:
+      postgres-shard1:
+        condition: service_healthy
+      postgres-shard2:
         condition: service_healthy
       redis:
         condition: service_healthy
     networks:
       - mytinyurl-network
 
-  postgres:
+  postgres-shard1:
     image: postgres:16-alpine
     restart: always
     environment:
@@ -32,7 +35,26 @@ services:
     ports:
       - "5432:5432"
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - pg_shard1_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U user -d mytinyurl"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - mytinyurl-network
+
+  postgres-shard2:
+    image: postgres:16-alpine
+    restart: always
+    environment:
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: mytinyurl
+    ports:
+      - "5434:5432"
+    volumes:
+      - pg_shard2_data:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U user -d mytinyurl"]
       interval: 5s
@@ -57,7 +79,8 @@ services:
       - mytinyurl-network
 
 volumes:
-  postgres_data:
+  pg_shard1_data:
+  pg_shard2_data:
   redis_data:
 
 networks:
