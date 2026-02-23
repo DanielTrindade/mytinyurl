@@ -1,55 +1,51 @@
 services:
   backend:
     build:
-      context: .
-      dockerfile: apps/backend/Dockerfile
-      target: dev
+      context: ./apps/backend
+      dockerfile: Dockerfile
     ports:
       - "3000:3000"
     environment:
-      - DATABASE_URL=postgresql://user:password@postgres:5432/mytinyurl
+      - DATABASE_URLS=postgresql://user:password@postgres-shard1:5432/mytinyurl,postgresql://user:password@postgres-shard2:5432/mytinyurl
+      - REDIS_URL=redis://redis:6379
       - PORT=3000
+      - APP_URL=http://localhost:3000
+      - CORS_ORIGINS=http://localhost:5173
+      - DEFAULT_EXPIRATION_HOURS=24
+      - MACHINE_ID=1
     volumes:
-      - ./apps/backend/src:/app/apps/backend/src
-      - ./apps/backend/prisma:/app/apps/backend/prisma
-      - ./apps/backend/tsconfig.json:/app/apps/backend/tsconfig.json
-      - ./.env:/app/apps/backend/.env
-      - ./turbo.json:/app/turbo.json
-      # Preserve node_modules
-      - /app/node_modules
-      - /app/apps/backend/node_modules
+      - ./apps/backend/src:/app/src
     depends_on:
-      - postgres
+      postgres-shard1:
+        condition: service_healthy
+      postgres-shard2:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
     networks:
       - mytinyurl-network
 
-  frontend:
+  worker:
     build:
-      context: .
-      dockerfile: apps/frontend/Dockerfile
-      target: dev
-    ports:
-      - "5173:5173"
+      context: ./apps/backend
+      dockerfile: Dockerfile
+    command: ["bun", "run", "src/worker.ts"]
     environment:
-      - VITE_API_URL=http://localhost:3000/api
+      - DATABASE_URLS=postgresql://user:password@postgres-shard1:5432/mytinyurl,postgresql://user:password@postgres-shard2:5432/mytinyurl
+      - REDIS_URL=redis://redis:6379
     volumes:
-      - ./apps/frontend/src:/app/apps/frontend/src
-      - ./apps/frontend/public:/app/apps/frontend/public
-      - ./apps/frontend/index.html:/app/apps/frontend/index.html
-      - ./apps/frontend/vite.config.ts:/app/apps/frontend/vite.config.ts
-      - ./apps/frontend/tailwind.config.js:/app/apps/frontend/tailwind.config.js
-      - ./apps/frontend/postcss.config.js:/app/apps/frontend/postcss.config.js
-      - ./apps/frontend/tsconfig.json:/app/apps/frontend/tsconfig.json
-      - ./apps/frontend/tsconfig.app.json:/app/apps/frontend/tsconfig.app.json
-      - ./apps/frontend/tsconfig.node.json:/app/apps/frontend/tsconfig.node.json
-      - ./turbo.json:/app/turbo.json
-      # Preserve node_modules
-      - /app/node_modules
-      - /app/apps/frontend/node_modules
+      - ./apps/backend/src:/app/src
+    depends_on:
+      postgres-shard1:
+        condition: service_healthy
+      postgres-shard2:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
     networks:
       - mytinyurl-network
 
-  postgres:
+  postgres-shard1:
     image: postgres:16-alpine
     restart: always
     environment:
@@ -59,13 +55,53 @@ services:
     ports:
       - "5432:5432"
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - pg_shard1_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U user -d mytinyurl"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - mytinyurl-network
+
+  postgres-shard2:
+    image: postgres:16-alpine
+    restart: always
+    environment:
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: mytinyurl
+    ports:
+      - "5434:5432"
+    volumes:
+      - pg_shard2_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U user -d mytinyurl"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - mytinyurl-network
+
+  redis:
+    image: redis:7-alpine
+    restart: always
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
     networks:
       - mytinyurl-network
 
 volumes:
-  postgres_data:
-
+  pg_shard1_data:
+  pg_shard2_data:
+  redis_data:
 
 networks:
   mytinyurl-network:

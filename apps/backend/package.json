@@ -1,44 +1,26 @@
 {
   "name": "@mytinyurl/backend",
   "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
   "type": "module",
-  "engines": {
-    "node": "22.x"
-  },
   "scripts": {
-    "build": "tsc && tsc-alias",
-    "start": "node dist/infrastructure/http/server.js",
-    "test": "vitest run",
-    "test:watch": "vitest",
-    "test:coverage": "vitest run --coverage",
-    "dev": "prisma generate && tsx watch src/infrastructure/http/server.ts"
-  },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "devDependencies": {
-    "@types/node": "^22.19.11",
-    "@types/pg": "^8.16.0",
-    "@vitest/coverage-v8": "^4.0.18",
-    "prisma": "^7.4.0",
-    "tsc-alias": "^1.8.16",
-    "tsx": "^4.19.2",
-    "typescript": "^5.7.3",
-    "vitest": "^4.0.18"
+    "dev": "bun run --watch src/index.ts",
+    "start": "bun run src/index.ts",
+    "test": "bun test",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "bun run src/db/migrate.ts",
+    "db:studio": "drizzle-kit studio",
+    "worker": "bun run src/worker.ts"
   },
   "dependencies": {
-    "@fastify/cors": "^10.0.2",
-    "@fastify/helmet": "^13.0.2",
-    "@fastify/rate-limit": "^10.3.0",
-    "@fastify/swagger": "^9.4.1",
-    "@prisma/adapter-pg": "^7.4.0",
-    "@prisma/client": "^7.4.0",
-    "@scalar/fastify-api-reference": "^1.44.17",
-    "dotenv": "^17.2.4",
-    "fastify": "^5.2.1",
-    "pg": "^8.18.0",
-    "zod": "^3.24.1"
+    "@elysiajs/cors": "latest",
+    "@elysiajs/swagger": "latest",
+    "drizzle-orm": "^0.38.0",
+    "elysia": "latest",
+    "ioredis": "^5.9.3",
+    "postgres": "^3.4.5"
+  },
+  "devDependencies": {
+    "bun-types": "latest",
+    "drizzle-kit": "^0.30.0"
   }
 }
