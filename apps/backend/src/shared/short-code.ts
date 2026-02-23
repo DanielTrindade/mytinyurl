@@ -1,37 +1,37 @@
-const BASE62_CHARS = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-const DEFAULT_LENGTH = 6;
-const MAX_RETRIES = 5;
+/**
+ * Short code generator using Snowflake IDs + base62 encoding.
+ *
+ * Before (Etapa 00): Random base62 with DB collision check
+ * After  (Etapa 02): Snowflake ID → base62 (guaranteed unique, no DB check)
+ *
+ * A Snowflake ID (64-bit) encodes to a 7-8 char base62 string.
+ * Example: 123456789012345n → "dGh7Kp2"
+ */
+
+import { SnowflakeGenerator } from './snowflake';
+import { base62Encode } from './base62';
+import { env } from '../config/env';
+
+// Singleton: one generator per server instance
+const snowflake = new SnowflakeGenerator(env.MACHINE_ID);
 
 /**
- * Generates a random short code using base62 characters.
- * Default length of 6 gives ~56 billion combinations (62^6).
+ * Generates a unique short code using Snowflake ID + base62.
+ * No DB collision check needed — uniqueness is guaranteed by
+ * the Snowflake algorithm (timestamp + machineId + sequence).
  */
-export function generateShortCode(length: number = DEFAULT_LENGTH): string {
-    const bytes = crypto.getRandomValues(new Uint8Array(length));
-    let result = '';
-
-    for (let i = 0; i < length; i++) {
-        result += BASE62_CHARS[bytes[i] % BASE62_CHARS.length];
-    }
-
-    return result;
+export function generateShortCode(): string {
+    const id = snowflake.nextId();
+    return base62Encode(id);
 }
 
 /**
- * Generates a short code with retry logic for collision handling.
- * @param existsCheck - async function that returns true if code already exists
+ * Legacy function kept for backward compatibility with tests.
+ * With Snowflake IDs, collision check is unnecessary.
+ * @deprecated Use generateShortCode() directly
  */
 export async function generateUniqueShortCode(
-    existsCheck: (code: string) => Promise<boolean>,
-    length: number = DEFAULT_LENGTH
+    _existsCheck?: (code: string) => Promise<boolean>,
 ): Promise<string> {
-    for (let i = 0; i < MAX_RETRIES; i++) {
-        const code = generateShortCode(length);
-        const exists = await existsCheck(code);
-        if (!exists) return code;
-    }
-
-    throw new Error(
-        `Failed to generate unique short code after ${MAX_RETRIES} attempts`
-    );
+    return generateShortCode();
 }

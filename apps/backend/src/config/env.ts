@@ -11,6 +11,10 @@ const envSchema = {
     // Dev:  redis://localhost:6379
     // Prod: rediss://default:TOKEN@endpoint.upstash.io:6379
     REDIS_URL: process.env.REDIS_URL || '',
+
+    // Snowflake ID: machine identifier (0-1023)
+    // Each server instance should have a unique MACHINE_ID
+    MACHINE_ID: Number(process.env.MACHINE_ID) || 1,
 } as const;
 
 // Validate required env vars

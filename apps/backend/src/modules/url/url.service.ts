@@ -1,23 +1,20 @@
 import { eq, sql } from 'drizzle-orm';
 import { db } from '../../db';
 import { urls, type Url, type NewUrl } from '../../db/schema';
-import { generateUniqueShortCode } from '../../shared/short-code';
-import { NotFoundError, GoneError, ConflictError } from '../../shared/errors';
+import { generateShortCode } from '../../shared/short-code';
+import { NotFoundError, GoneError } from '../../shared/errors';
 import { cacheService } from '../../cache/redis';
 import { env } from '../../config/env';
 
 export class UrlService {
     /**
      * Creates a new shortened URL.
+     * Uses Snowflake ID → base62 for short code (no collision check needed).
      * Uses write-through: stores in DB and populates cache immediately.
      */
     async createShortUrl(originalUrl: string): Promise<Url> {
-        const shortCode = await generateUniqueShortCode(async (code) => {
-            const existing = await db.query.urls.findFirst({
-                where: eq(urls.shortCode, code),
-            });
-            return !!existing;
-        });
+        // Snowflake guarantees uniqueness — no DB lookup required
+        const shortCode = generateShortCode();
 
         const expiresAt = new Date();
         expiresAt.setHours(expiresAt.getHours() + env.DEFAULT_EXPIRATION_HOURS);
