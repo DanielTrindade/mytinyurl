@@ -1,0 +1,56 @@
+services:
+  backend:
+    image: mytinyurl-backend:latest
+    build:
+      context: ./apps/backend
+      dockerfile: Dockerfile
+    restart: always
+    environment:
+      - DATABASE_URLS=${DATABASE_URLS}
+      - REDIS_URL=${REDIS_URL}
+      - PORT=3000
+      - APP_URL=${APP_URL}
+      - CORS_ORIGINS=${CORS_ORIGINS}
+      - DEFAULT_EXPIRATION_HOURS=24
+      - MACHINE_ID=1
+    networks:
+      - mytinyurl-network
+
+  worker:
+    image: mytinyurl-worker:latest
+    build:
+      context: ./apps/backend
+      dockerfile: Dockerfile
+    command: ["bun", "run", "src/worker.ts"]
+    restart: always
+    environment:
+      - DATABASE_URLS=${DATABASE_URLS}
+      - REDIS_URL=${REDIS_URL}
+    networks:
+      - mytinyurl-network
+
+  # Caddy acts as a reverse proxy and automatically provisions HTTPS via Let's Encrypt
+  caddy:
+    image: caddy:2-alpine
+    restart: always
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      - DOMAIN=${DOMAIN}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - backend
+    networks:
+      - mytinyurl-network
+
+volumes:
+  caddy_data:
+  caddy_config:
+
+networks:
+  mytinyurl-network:
+    driver: bridge

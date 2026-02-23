@@ -1,0 +1,7 @@
+{
+	email admin@mytinyurl.com
+}
+
+{$DOMAIN}:80, {$DOMAIN}:443 {
+	reverse_proxy backend:3000
+}
