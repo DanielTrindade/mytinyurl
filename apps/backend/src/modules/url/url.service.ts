@@ -4,20 +4,17 @@ import { shardRouter } from '../../db';
 import { generateShortCode } from '../../shared/short-code';
 import { NotFoundError, GoneError } from '../../shared/errors';
 import { cacheService } from '../../cache/redis';
+import { eventProducer } from '../../events/producer';
 import { env } from '../../config/env';
 
 export class UrlService {
     /**
      * Creates a new shortened URL.
-     * 1. Generate Snowflake short code
-     * 2. Determine target shard via consistent hashing
-     * 3. Insert into the correct shard
-     * 4. Write-through to Redis cache
+     * Snowflake ID → base62 → consistent hash → correct shard.
      */
     async createShortUrl(originalUrl: string): Promise<Url> {
         const shortCode = generateShortCode();
 
-        // Shard Router determines which PostgreSQL instance
         const db = shardRouter.getDb(shortCode);
         const shardIndex = shardRouter.getShardIndex(shortCode);
         console.log(`📝 Creating URL on shard ${shardIndex}: ${shortCode}`);
@@ -43,30 +40,24 @@ export class UrlService {
 
     /**
      * Finds a URL by its short code and redirects.
-     * Cache-Aside pattern + Shard-aware DB lookup.
+     *
+     * Flow:
+     * 1. Check Redis cache
+     * 2. On MISS → query correct shard → populate cache
+     * 3. Publish visit event to Redis Stream (NOT a direct DB write)
+     *    → The analytics worker will batch-process these events
      */
     async redirectUrl(shortCode: string): Promise<string> {
         // 1. Check cache first
         const cached = await cacheService.get(shortCode);
         if (cached) {
-            // Cache HIT — fire-and-forget visit increment on correct shard
-            const db = shardRouter.getDb(shortCode);
-            db.update(urls)
-                .set({
-                    visits: sql`${urls.visits} + 1`,
-                    updatedAt: new Date(),
-                })
-                .where(eq(urls.shortCode, shortCode))
-                .then(() => { })
-                .catch((err) => console.error('Failed to increment visits:', err));
-
+            // Publish visit event (fire-and-forget, < 2ms)
+            eventProducer.publishVisit(shortCode);
             return cached;
         }
 
         // 2. Cache MISS — query the correct shard
         const db = shardRouter.getDb(shortCode);
-        const shardIndex = shardRouter.getShardIndex(shortCode);
-        console.log(`🔍 Reading from shard ${shardIndex}: ${shortCode}`);
 
         const url = await db.query.urls.findFirst({
             where: eq(urls.shortCode, shortCode),
@@ -90,21 +81,14 @@ export class UrlService {
             : env.DEFAULT_EXPIRATION_HOURS * 60 * 60;
         await cacheService.set(shortCode, url.originalUrl, ttlSeconds);
 
-        // Increment visits (fire-and-forget)
-        db.update(urls)
-            .set({
-                visits: sql`${urls.visits} + 1`,
-                updatedAt: new Date(),
-            })
-            .where(eq(urls.shortCode, shortCode))
-            .then(() => { })
-            .catch((err) => console.error('Failed to increment visits:', err));
+        // Publish visit event instead of direct DB update
+        eventProducer.publishVisit(shortCode);
 
         return url.originalUrl;
     }
 
     /**
-     * Gets URL statistics by short code — always from the correct shard.
+     * Gets URL statistics — always from DB for accuracy.
      */
     async getUrlStats(shortCode: string): Promise<Url> {
         const db = shardRouter.getDb(shortCode);
@@ -121,5 +105,4 @@ export class UrlService {
     }
 }
 
-// Singleton instance
 export const urlService = new UrlService();

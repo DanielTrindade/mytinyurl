@@ -1,6 +1,7 @@
 import { Elysia, t } from 'elysia';
 import { urlService } from './url.service';
 import { cacheService } from '../../cache/redis';
+import { eventProducer } from '../../events/producer';
 import { shardRouter } from '../../db';
 import { env } from '../../config/env';
 
@@ -66,6 +67,7 @@ export const urlRoutes = new Elysia({ prefix: '/api' })
         status: 'ok',
         timestamp: new Date().toISOString(),
         cache: cacheService.getMetrics(),
+        events: eventProducer.getMetrics(),
         shards: shardRouter.shardCount,
     }), {
         detail: {
