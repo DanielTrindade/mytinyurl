@@ -1,98 +1,183 @@
 import { Elysia, t } from 'elysia';
-import { urlService } from './url.service';
-import { cacheService } from '../../cache/redis';
-import { eventProducer } from '../../events/producer';
-import { shardRouter } from '../../db';
-import { env } from '../../config/env';
+import type { AppConfig } from '../../config/types';
+import { toErrorResponse, UnauthorizedError } from '../../shared/errors';
 
-/**
- * API routes for URL management (/api prefix).
- * Following Elysia best practice: Elysia instance = controller.
- */
-export const urlRoutes = new Elysia({ prefix: '/api' })
-    .post(
-        '/shorten',
-        async ({ body }) => {
-            const url = await urlService.createShortUrl(body.url);
+export interface UrlRoutesService {
+    createShortUrl(originalUrl: string): Promise<{
+        id: string;
+        originalUrl: string;
+        shortCode: string;
+        statsToken: string;
+        expiresAt: Date | null;
+        createdAt: Date;
+    }>;
+    getUrlStats(shortCode: string, statsToken: string): Promise<{
+        id: string;
+        originalUrl: string;
+        shortCode: string;
+        visits: number;
+        isActive: boolean;
+        createdAt: Date;
+        updatedAt: Date;
+        expiresAt: Date | null;
+        statsToken: string;
+    }>;
+    redirectUrl(shortCode: string): Promise<string>;
+}
 
-            return {
-                id: url.id,
-                originalUrl: url.originalUrl,
-                shortCode: url.shortCode,
-                shortUrl: `${env.APP_URL}/${url.shortCode}`,
-                expiresAt: url.expiresAt,
-                createdAt: url.createdAt,
-            };
-        },
-        {
-            body: t.Object({
-                url: t.String({ format: 'uri' }),
-            }),
-            detail: {
-                tags: ['URLs'],
-                summary: 'Create a short URL',
-                description: 'Creates a new shortened URL with automatic expiration',
+interface UrlRoutesOptions {
+    config: AppConfig;
+    urlService: UrlRoutesService;
+    getAdminHealth?: () => Record<string, unknown>;
+}
+
+const shortCodeSchema = t.String({
+    pattern: '^[A-Za-z0-9]{6,10}$',
+    maxLength: 10,
+});
+
+export function createUrlRoutes({
+    config,
+    urlService,
+    getAdminHealth,
+}: UrlRoutesOptions) {
+    const api = new Elysia({ prefix: '/api' })
+        .post(
+            '/shorten',
+            async ({ body, set }) => {
+                try {
+                    const url = await urlService.createShortUrl(body.url);
+
+                    return {
+                        id: url.id,
+                        originalUrl: url.originalUrl,
+                        shortCode: url.shortCode,
+                        shortUrl: `${config.APP_URL}/${url.shortCode}`,
+                        statsToken: url.statsToken,
+                        expiresAt: url.expiresAt,
+                        createdAt: url.createdAt,
+                    };
+                } catch (error) {
+                    const response = toErrorResponse(error);
+                    set.status = response.statusCode;
+                    return response;
+                }
             },
-        }
-    )
-    .get(
-        '/urls/:shortCode/stats',
-        async ({ params }) => {
-            const url = await urlService.getUrlStats(params.shortCode);
+            {
+                body: t.Object({
+                    url: t.String({
+                        format: 'uri',
+                        maxLength: config.MAX_URL_LENGTH,
+                    }),
+                }),
+                detail: {
+                    tags: ['URLs'],
+                    summary: 'Create a short URL',
+                    description:
+                        'Creates a new shortened URL and returns a stats token for private analytics access',
+                },
+            }
+        )
+        .get(
+            '/urls/:shortCode/stats',
+            async ({ params, query, request, set }) => {
+                const statsToken = request.headers.get('x-stats-token') || query.token || '';
+                if (!statsToken) {
+                    const response = toErrorResponse(
+                        new UnauthorizedError('Stats token is required')
+                    );
+                    set.status = response.statusCode;
+                    return response;
+                }
 
-            return {
-                id: url.id,
-                originalUrl: url.originalUrl,
-                shortCode: url.shortCode,
-                shortUrl: `${env.APP_URL}/${url.shortCode}`,
-                visits: url.visits,
-                isActive: url.isActive,
-                createdAt: url.createdAt,
-                updatedAt: url.updatedAt,
-                expiresAt: url.expiresAt,
-            };
+                try {
+                    const url = await urlService.getUrlStats(params.shortCode, statsToken);
+
+                    return {
+                        id: url.id,
+                        originalUrl: url.originalUrl,
+                        shortCode: url.shortCode,
+                        shortUrl: `${config.APP_URL}/${url.shortCode}`,
+                        visits: url.visits,
+                        isActive: url.isActive,
+                        createdAt: url.createdAt,
+                        updatedAt: url.updatedAt,
+                        expiresAt: url.expiresAt,
+                    };
+                } catch (error) {
+                    const response = toErrorResponse(error);
+                    set.status = response.statusCode;
+                    return response;
+                }
+            },
+            {
+                params: t.Object({
+                    shortCode: shortCodeSchema,
+                }),
+                query: t.Object({
+                    token: t.Optional(t.String({ minLength: 16, maxLength: 128 })),
+                }),
+                detail: {
+                    tags: ['URLs'],
+                    summary: 'Get URL statistics',
+                    description:
+                        'Returns statistics for a shortened URL when a valid stats token is provided',
+                },
+            }
+        );
+
+    if (getAdminHealth) {
+        api.get(
+            '/admin/health',
+            ({ request, set }) => {
+                if (
+                    config.ADMIN_TOKEN &&
+                    request.headers.get('x-admin-token') !== config.ADMIN_TOKEN
+                ) {
+                    const response = toErrorResponse(
+                        new UnauthorizedError('Admin token is required')
+                    );
+                    set.status = response.statusCode;
+                    return response;
+                }
+
+                return getAdminHealth();
+            },
+            {
+                detail: {
+                    tags: ['System'],
+                    summary: 'Detailed health check',
+                    description: 'Returns internal metrics and requires an admin token in production',
+                },
+            }
+        );
+    }
+
+    return api;
+}
+
+export function createRedirectRoutes(urlService: UrlRoutesService) {
+    return new Elysia().get(
+        '/:shortCode',
+        async ({ params, redirect, set }) => {
+            try {
+                const originalUrl = await urlService.redirectUrl(params.shortCode);
+                return redirect(originalUrl, 302);
+            } catch (error) {
+                const response = toErrorResponse(error);
+                set.status = response.statusCode;
+                return response;
+            }
         },
         {
             params: t.Object({
-                shortCode: t.String(),
+                shortCode: shortCodeSchema,
             }),
             detail: {
-                tags: ['URLs'],
-                summary: 'Get URL statistics',
-                description: 'Returns statistics for a shortened URL including visit count',
+                tags: ['Redirect'],
+                summary: 'Redirect to original URL',
+                description: 'Redirects to the original URL and increments visit count',
             },
         }
-    )
-    .get('/health', () => ({
-        status: 'ok',
-        timestamp: new Date().toISOString(),
-        cache: cacheService.getMetrics(),
-        events: eventProducer.getMetrics(),
-        shards: shardRouter.shardCount,
-    }), {
-        detail: {
-            tags: ['System'],
-            summary: 'Health check',
-        },
-    });
-
-/**
- * Redirect route (no /api prefix — root level).
- */
-export const redirectRoutes = new Elysia().get(
-    '/:shortCode',
-    async ({ params, redirect }) => {
-        const originalUrl = await urlService.redirectUrl(params.shortCode);
-        return redirect(originalUrl, 302);
-    },
-    {
-        params: t.Object({
-            shortCode: t.String(),
-        }),
-        detail: {
-            tags: ['Redirect'],
-            summary: 'Redirect to original URL',
-            description: 'Redirects to the original URL and increments visit count',
-        },
-    }
-);
+    );
+}

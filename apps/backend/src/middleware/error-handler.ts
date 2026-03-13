@@ -1,13 +1,13 @@
 import { Elysia } from 'elysia';
-import { AppError } from '../shared/errors';
+import { isAppLikeError } from '../shared/errors';
 
 /**
  * Global error handler plugin for Elysia.
  * Catches AppError instances and formats consistent error responses.
  */
 export const errorHandler = new Elysia({ name: 'error-handler' }).onError(
-    ({ error, set }) => {
-        if (error instanceof AppError) {
+    ({ code, error, set }) => {
+        if (isAppLikeError(error)) {
             set.status = error.statusCode;
             return {
                 error: error.code,
@@ -17,7 +17,7 @@ export const errorHandler = new Elysia({ name: 'error-handler' }).onError(
         }
 
         // Elysia built-in validation errors
-        if ('name' in error && error.name === 'ValidationError') {
+        if (code === 'VALIDATION' || ('name' in error && error.name === 'ValidationError')) {
             set.status = 422;
             return {
                 error: 'VALIDATION_ERROR',

@@ -121,7 +121,7 @@ describe('ConsistentHashRing', () => {
 
 // ── Short Code (integration) ──
 
-describe('generateShortCode (Snowflake + base62)', () => {
+describe('generateShortCode (opaque random code)', () => {
     test('produces unique codes', () => {
         const codes = new Set<string>();
         for (let i = 0; i < 1000; i++) codes.add(generateShortCode());
@@ -133,5 +133,9 @@ describe('generateShortCode (Snowflake + base62)', () => {
         for (let i = 0; i < 100; i++) {
             expect(generateShortCode()).toMatch(regex);
         }
+    });
+
+    test('uses a fixed public length', () => {
+        expect(generateShortCode()).toHaveLength(8);
     });
 });

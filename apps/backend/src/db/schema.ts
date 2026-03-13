@@ -12,6 +12,7 @@ export const urls = pgTable('urls', {
     id: uuid('id').defaultRandom().primaryKey(),
     originalUrl: text('original_url').notNull(),
     shortCode: varchar('short_code', { length: 10 }).unique().notNull(),
+    statsToken: varchar('stats_token', { length: 64 }).notNull(),
     visits: integer('visits').default(0).notNull(),
     isActive: boolean('is_active').default(true).notNull(),
     createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
