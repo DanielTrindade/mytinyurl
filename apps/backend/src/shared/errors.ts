@@ -36,3 +36,60 @@ export class GoneError extends AppError {
         this.name = 'GoneError';
     }
 }
+
+export interface ErrorResponse {
+    error: string;
+    message: string;
+    statusCode: number;
+}
+
+export function isAppLikeError(error: unknown): error is AppError {
+    return (
+        error instanceof AppError ||
+        (typeof error === 'object' &&
+            error !== null &&
+            'statusCode' in error &&
+            typeof (error as { statusCode?: unknown }).statusCode === 'number' &&
+            'code' in error &&
+            typeof (error as { code?: unknown }).code === 'string' &&
+            'message' in error &&
+            typeof (error as { message?: unknown }).message === 'string')
+    );
+}
+
+export function toErrorResponse(error: unknown): ErrorResponse {
+    if (isAppLikeError(error)) {
+        return {
+            error: error.code,
+            message: error.message,
+            statusCode: error.statusCode,
+        };
+    }
+
+    return {
+        error: 'INTERNAL_ERROR',
+        message: 'An unexpected error occurred',
+        statusCode: 500,
+    };
+}
+
+export class UnauthorizedError extends AppError {
+    constructor(message: string = 'Unauthorized') {
+        super(message, 401, 'UNAUTHORIZED');
+        this.name = 'UnauthorizedError';
+    }
+}
+
+export class ForbiddenError extends AppError {
+    constructor(message: string = 'Forbidden') {
+        super(message, 403, 'FORBIDDEN');
+        this.name = 'ForbiddenError';
+    }
+}
+
+export class TooManyRequestsError extends AppError {
+    constructor(message: string = 'Too many requests') {
+        super(message, 429, 'TOO_MANY_REQUESTS');
+        this.name = 'TooManyRequestsError';
+    }
+}

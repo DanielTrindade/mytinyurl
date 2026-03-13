@@ -1,8 +1,8 @@
 services:
   backend:
     build:
-      context: ./apps/backend
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: apps/backend/Dockerfile
     ports:
       - "3000:3000"
     environment:
@@ -11,6 +11,16 @@ services:
       - PORT=3000
       - APP_URL=http://localhost:3000
       - CORS_ORIGINS=http://localhost:5173
+      - NODE_ENV=development
+      - ENABLE_DOCS=true
+      - BLOCK_PRIVATE_TARGETS=true
+      - MAX_URL_LENGTH=2048
+      - MAX_REQUEST_BODY_BYTES=4096
+      - RATE_LIMIT_WINDOW_SECONDS=60
+      - RATE_LIMIT_MAX_SHORTEN=20
+      - RATE_LIMIT_MAX_STATS=30
+      - RATE_LIMIT_MAX_REDIRECT=300
+      - RATE_LIMIT_MAX_HEALTH=60
       - DEFAULT_EXPIRATION_HOURS=24
       - MACHINE_ID=1
     volumes:
@@ -27,12 +37,13 @@ services:
 
   worker:
     build:
-      context: ./apps/backend
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: apps/backend/Dockerfile
     command: ["bun", "run", "src/worker.ts"]
     environment:
       - DATABASE_URLS=postgresql://user:password@postgres-shard1:5432/mytinyurl,postgresql://user:password@postgres-shard2:5432/mytinyurl
       - REDIS_URL=redis://redis:6379
+      - NODE_ENV=development
     volumes:
       - ./apps/backend/src:/app/src
     depends_on:

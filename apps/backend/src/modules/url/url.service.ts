@@ -1,64 +1,75 @@
-import { eq, sql } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
 import { urls, type Url } from '../../db/schema';
 import { shardRouter } from '../../db';
 import { generateShortCode } from '../../shared/short-code';
-import { NotFoundError, GoneError } from '../../shared/errors';
+import {
+    ConflictError,
+    GoneError,
+    NotFoundError,
+    UnauthorizedError,
+} from '../../shared/errors';
 import { cacheService } from '../../cache/redis';
 import { eventProducer } from '../../events/producer';
 import { env } from '../../config/env';
+import { generateOpaqueToken } from '../../shared/random';
+import { validateDestinationUrl } from '../../shared/url-safety';
 
 export class UrlService {
     /**
-     * Creates a new shortened URL.
-     * Snowflake ID → base62 → consistent hash → correct shard.
+     * Creates a new shortened URL using an opaque short code and a per-link
+     * stats token that must be presented to read analytics.
      */
     async createShortUrl(originalUrl: string): Promise<Url> {
-        const shortCode = generateShortCode();
-
-        const db = shardRouter.getDb(shortCode);
-        const shardIndex = shardRouter.getShardIndex(shortCode);
-        console.log(`📝 Creating URL on shard ${shardIndex}: ${shortCode}`);
+        const normalizedUrl = validateDestinationUrl(originalUrl, {
+            allowPrivateTargets: !env.BLOCK_PRIVATE_TARGETS,
+            maxLength: env.MAX_URL_LENGTH,
+        });
 
         const expiresAt = new Date();
         expiresAt.setHours(expiresAt.getHours() + env.DEFAULT_EXPIRATION_HOURS);
-
-        const [newUrl] = await db
-            .insert(urls)
-            .values({
-                originalUrl,
-                shortCode,
-                expiresAt,
-            })
-            .returning();
-
-        // Write-through: populate cache
         const ttlSeconds = env.DEFAULT_EXPIRATION_HOURS * 60 * 60;
-        await cacheService.set(shortCode, originalUrl, ttlSeconds);
 
-        return newUrl;
+        for (let attempt = 0; attempt < 5; attempt++) {
+            const shortCode = generateShortCode();
+            const statsToken = generateOpaqueToken();
+            const db = shardRouter.getDb(shortCode);
+            const shardIndex = shardRouter.getShardIndex(shortCode);
+
+            console.log(`Creating URL on shard ${shardIndex}: ${shortCode}`);
+
+            try {
+                const [newUrl] = await db
+                    .insert(urls)
+                    .values({
+                        originalUrl: normalizedUrl,
+                        shortCode,
+                        statsToken,
+                        expiresAt,
+                    })
+                    .returning();
+
+                await cacheService.set(shortCode, normalizedUrl, ttlSeconds);
+                return newUrl;
+            } catch (error: any) {
+                if (error?.code === '23505') {
+                    continue;
+                }
+
+                throw error;
+            }
+        }
+
+        throw new ConflictError('Could not generate a unique short code');
     }
 
-    /**
-     * Finds a URL by its short code and redirects.
-     *
-     * Flow:
-     * 1. Check Redis cache
-     * 2. On MISS → query correct shard → populate cache
-     * 3. Publish visit event to Redis Stream (NOT a direct DB write)
-     *    → The analytics worker will batch-process these events
-     */
     async redirectUrl(shortCode: string): Promise<string> {
-        // 1. Check cache first
         const cached = await cacheService.get(shortCode);
         if (cached) {
-            // Publish visit event (fire-and-forget, < 2ms)
-            eventProducer.publishVisit(shortCode);
+            void eventProducer.publishVisit(shortCode);
             return cached;
         }
 
-        // 2. Cache MISS — query the correct shard
         const db = shardRouter.getDb(shortCode);
-
         const url = await db.query.urls.findFirst({
             where: eq(urls.shortCode, shortCode),
         });
@@ -75,29 +86,31 @@ export class UrlService {
             throw new GoneError('This URL has expired');
         }
 
-        // 3. Populate cache
         const ttlSeconds = url.expiresAt
             ? Math.max(1, Math.floor((url.expiresAt.getTime() - Date.now()) / 1000))
             : env.DEFAULT_EXPIRATION_HOURS * 60 * 60;
         await cacheService.set(shortCode, url.originalUrl, ttlSeconds);
 
-        // Publish visit event instead of direct DB update
-        eventProducer.publishVisit(shortCode);
+        void eventProducer.publishVisit(shortCode);
 
         return url.originalUrl;
     }
 
-    /**
-     * Gets URL statistics — always from DB for accuracy.
-     */
-    async getUrlStats(shortCode: string): Promise<Url> {
-        const db = shardRouter.getDb(shortCode);
+    async getUrlStats(shortCode: string, statsToken: string): Promise<Url> {
+        if (!statsToken) {
+            throw new UnauthorizedError('Stats token is required');
+        }
 
+        const db = shardRouter.getDb(shortCode);
         const url = await db.query.urls.findFirst({
             where: eq(urls.shortCode, shortCode),
         });
 
         if (!url) {
+            throw new NotFoundError(`URL with code '${shortCode}' not found`);
+        }
+
+        if (url.statsToken !== statsToken) {
             throw new NotFoundError(`URL with code '${shortCode}' not found`);
         }
 
