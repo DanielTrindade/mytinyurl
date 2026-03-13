@@ -75,7 +75,7 @@ export function UrlShortener() {
 				headers: {
 					"Content-Type": "application/json",
 				},
-				body: JSON.stringify({ originalUrl: url }),
+				body: JSON.stringify({ url }),
 			});
 
 			if (!response.ok) {
