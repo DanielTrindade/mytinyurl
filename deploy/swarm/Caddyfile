@@ -1,0 +1,30 @@
+{
+	email {$LETSENCRYPT_EMAIL}
+	admin off
+}
+
+{$APP_DOMAIN} {
+	encode zstd gzip
+
+	@blocked_docs path /docs /docs/*
+	respond @blocked_docs 404
+
+	@blocked_health path /health /api/health /api/admin/health
+	respond @blocked_health 404
+
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		Permissions-Policy "camera=(), microphone=(), geolocation=()"
+		-Server
+	}
+
+	reverse_proxy backend:3000 {
+		health_uri /health
+		health_interval 30s
+		health_timeout 5s
+		health_status 2xx
+	}
+}

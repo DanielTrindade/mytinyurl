@@ -1,6 +1,6 @@
-.env
-.env.*
 node_modules
-dist
+.turbo
 coverage
 *.log
+README.md
+drizzle/meta

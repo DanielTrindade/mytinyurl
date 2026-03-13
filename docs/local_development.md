@@ -1,54 +1,54 @@
 # Guia de Desenvolvimento Local
 
-Este guia explica como rodar o projeto localmente utilizando Docker, com suporte a hot-reload e banco de dados isolado.
+O fluxo local atual separa a infraestrutura distribuída do frontend:
+
+- `docker-compose.dev.yml` sobe backend, worker, Redis e duas shards PostgreSQL.
+- O frontend roda fora do Docker com Vite, apontando para `http://localhost:3000/api`.
 
 ## Pré-requisitos
 
-- [Docker](https://docs.docker.com/get-docker/) instalado e rodando.
-- [Node.js](https://nodejs.org/) (opcional, para rodar scripts fora do Docker).
+- [Docker](https://docs.docker.com/get-docker/) instalado e ativo.
+- [Node.js](https://nodejs.org/) com `npm`.
+- `bun` instalado apenas se você quiser executar testes ou comandos do backend fora dos containers.
 
-## Rodando o Ambiente de Desenvolvimento
-
-Para iniciar toda a stack (Backend + Frontend + Banco de Dados) em modo de desenvolvimento:
-
-```bash
-docker-compose -f docker-compose.dev.yml up --build
-```
-
-O comando acima irá:
-
-1. Iniciar o Postgres na porta `5432`.
-2. Iniciar o Backend na porta `3000` (com hot-reload via `tsx watch`).
-3. Iniciar o Frontend na porta `5173` (com hot-reload via Vite).
-
-### Acessando os Serviços
-
-- **Frontend**: <http://localhost:5173>
-- **Backend API**: <http://localhost:3000>
-- **Documentação da API**: <http://localhost:3000/docs>
-- **Banco de Dados**: `postgresql://user:password@localhost:5432/mytinyurl`
-
-### Hot-Reload
-
-Graças aos volumes configurados no `docker-compose.dev.yml`, qualquer alteração nos arquivos dentro de `apps/backend/src` ou `apps/frontend/src` será refletida automaticamente sem precisar reiniciar os containers.
-
-## Rodando em Modo Produção (Simulação)
-
-Para testar como a aplicação irá se comportar em produção (build otimizado):
+## Subindo backend, worker e bancos
 
 ```bash
-docker-compose up --build
+docker compose -f docker-compose.dev.yml up --build
 ```
 
-Isso irá rodar as imagens de produção (`target: runner`), onde o frontend é servido pelo Nginx e o backend roda o código compilado em JS.
+Serviços iniciados por esse comando:
 
-### Configuração de Banco de Dados (Produção)
+- Backend em `http://localhost:3000`
+- Worker de analytics
+- PostgreSQL shard 1 em `localhost:5432`
+- PostgreSQL shard 2 em `localhost:5434`
+- Redis em `localhost:6379`
 
-Por padrão, o `docker-compose.yml` de produção também sobe um banco Postgres.
-Se você quiser usar um banco externo (ex: Supabase, Neon), altere a variável `DATABASE_URL` no arquivo `.env` para a URL do seu banco gerenciado.
+## Subindo o frontend
 
-Exemplo `.env` para Supabase:
+Crie o arquivo de ambiente local do frontend:
 
-```env
-DATABASE_URL="postgresql://postgres:[PASSWORD]@db.supabase.co:5432/postgres?pgbouncer=true"
+```bash
+cp apps/frontend/.env.example apps/frontend/.env.local
 ```
+
+Depois rode:
+
+```bash
+npm run dev --workspace @mytinyurl/frontend
+```
+
+Com isso, o frontend ficará em <http://localhost:5173>.
+
+## Endpoints úteis
+
+- API principal: <http://localhost:3000/api/shorten>
+- Redirect: <http://localhost:3000/{shortCode}>
+- Docs da API: <http://localhost:3000/docs>
+
+## Observações
+
+- O backend local aceita múltiplas shards via `DATABASE_URLS`.
+- O frontend precisa de `VITE_API_URL` terminando em `/api`.
+- O arquivo `docker-compose.prod.yml` é apenas um fallback de execução fora do Swarm. O deploy recomendado está em [docs/deploy_vps_cloudflare_supabase.md](deploy_vps_cloudflare_supabase.md).

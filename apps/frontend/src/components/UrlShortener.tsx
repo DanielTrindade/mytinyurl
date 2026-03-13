@@ -33,7 +33,7 @@ export function UrlShortener() {
 	const [errors, setErrors] = useState<FormErrors>({});
 	const [copied, setCopied] = useState(false);
 
-	const API_URL = import.meta.env.VITE_API_URL;
+	const API_URL = (import.meta.env.VITE_API_URL || "http://localhost:3000/api").replace(/\/$/, "");
 
 	const validateForm = (): boolean => {
 		try {
@@ -79,8 +79,16 @@ export function UrlShortener() {
 			});
 
 			if (!response.ok) {
-				const errorData = await response.json();
-				throw new Error(errorData.message || "Erro ao encurtar URL");
+				let errorMessage = "Erro ao encurtar URL";
+
+				try {
+					const errorData = await response.json();
+					errorMessage = errorData.message || errorMessage;
+				} catch {
+					errorMessage = "Erro ao encurtar URL";
+				}
+
+				throw new Error(errorMessage);
 			}
 
 			const data: ApiResponse = await response.json();
