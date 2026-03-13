@@ -1,15 +1,32 @@
-# Elysia with Bun runtime
+# MyTinyURL Backend
 
-## Getting Started
-To get started with this template, simply paste this command into your terminal:
-```bash
-bun create elysia ./elysia-example
-```
+Backend distribuído em Bun + Elysia + Drizzle.
 
-## Development
-To start the development server run:
+## Responsabilidades
+
+- Criar URLs curtas
+- Redirecionar `/{shortCode}`
+- Publicar eventos de visita no Redis
+- Expor analytics protegidos por `statsToken`
+- Aplicar headers de segurança, validação e rate limiting
+
+## Comandos
+
 ```bash
 bun run dev
+bun run test
+bun run db:migrate
+bun run worker
 ```
 
-Open http://localhost:3000/ with your browser to see the result.
+## Variáveis principais
+
+- `DATABASE_URLS`: lista separada por vírgula com as shards PostgreSQL
+- `APP_URL`: domínio público do redirector, por exemplo `https://go.seudominio.com`
+- `CORS_ORIGINS`: origens do frontend
+- `REDIS_URL`: Redis local ou gerenciado
+- `ADMIN_TOKEN`: token para `/api/admin/health`
+
+## Deploy recomendado
+
+O deploy operacional principal está documentado em [docs/deploy_vps_cloudflare_supabase.md](../../docs/deploy_vps_cloudflare_supabase.md).

@@ -1,71 +1,49 @@
 # MyTinyURL Frontend
 
-Interface web do serviço de encurtamento de URLs MyTinyURL.
+Aplicação React/Vite que consome a API do MyTinyURL.
 
-## 🛠️ Tecnologias
+## Ambiente
 
-- React 18
-- TypeScript
-- Tailwind CSS
-- Vite
-- Heroicons
+O frontend depende de `VITE_API_URL` terminando em `/api`.
 
-## 🔧 Configuração
+Exemplos:
 
-1. Instale as dependências:
-```bash
-npm install
-```
+- desenvolvimento: `http://localhost:3000/api`
+- produção: `https://go.seudominio.com/api`
 
-2. Configure as variáveis de ambiente:
-```bash
-cp .env.example .env
-```
+Arquivos de exemplo:
 
-3. Inicie o servidor de desenvolvimento:
+- local: [apps/frontend/.env.example](.env.example)
+- produção: [apps/frontend/.env.production.example](.env.production.example)
+
+## Comandos
+
 ```bash
 npm run dev
+npm run build
+npm run preview
 ```
 
-## 🎨 Features
+## Integração com o backend
 
-- Interface responsiva e moderna
-- Tema claro/escuro
-- Notificações de feedback
-- Copiar para área de transferência
-- Validação de URLs
-- Layout adaptativo
+Endpoints usados hoje:
 
-## 📱 Componentes
+- `POST /api/shorten`
+- `GET /{shortCode}`
+- `GET /api/urls/:shortCode/stats` com `X-Stats-Token`
 
-- `UrlShortener`: Componente principal para encurtar URLs
-- `ThemeProvider`: Gerenciamento do tema claro/escuro
-- Cards informativos
-- Feedback visual de ações
+O payload de criação precisa ser:
 
-## 🔗 Integração com Backend
-
-O frontend se comunica com o backend através de:
-- POST /api/shorten: Criar URL curta
-- GET /{shortCode}: Redirecionamento
-- GET /api/stats/{shortCode}: Estatísticas
-
-## 🎯 Scripts Disponíveis
-
-- `npm run dev`: Inicia servidor de desenvolvimento
-- `npm run build`: Build para produção
-- `npm run preview`: Visualiza build local
-
-## 🖥️ Ambiente de Desenvolvimento
-
-### VSCode
-Extensões recomendadas:
-- Tailwind CSS IntelliSense
-- ESLint
-- Prettier
-
-### Docker
-Para rodar com Docker:
-```bash
-docker compose up frontend
+```json
+{
+  "url": "https://exemplo.com"
+}
 ```
+
+## Deploy recomendado
+
+O alvo principal do frontend é Cloudflare Pages com:
+
+- root directory `apps/frontend`
+- build command `npm run build`
+- output directory `dist`

@@ -1,87 +1,50 @@
 # MyTinyURL
 
-## Desenvolvimento Local
+MyTinyURL é um monorepo de encurtamento de URLs com backend distribuído em Bun/Elysia, duas shards PostgreSQL, cache e fila em Redis, e frontend estático em React/Vite.
 
-Para instruções detalhadas de como rodar o projeto localmente com Docker, consulte [docs/local_development.md](docs/local_development.md).
+## Arquitetura atual
 
-Para rodar rapidamente em modo dev:
+- `apps/backend`: API pública, redirector, rate limiting, validação de URLs e worker de analytics.
+- `apps/frontend`: interface React que consome a API via `VITE_API_URL`.
+- `docker-compose.dev.yml`: stack local com duas shards PostgreSQL, Redis, backend e worker.
+- `deploy/swarm`: artefatos para o deploy recomendado em VPS com Docker Swarm e Caddy.
 
-```bash
-docker-compose -f docker-compose.dev.yml up
-```
+## Desenvolvimento local
 
-- Monorepo
+Use o guia completo em [docs/local_development.md](docs/local_development.md).
 
-Este é um projeto monorepo contendo um serviço de encurtamento de URLs com backend em Node.js/Fastify e frontend em React.
-
-## 📁 Estrutura do Projeto
-
-```text
-mytinyurl/
-├── apps/
-│   ├── backend/         # API em Fastify
-│   └── frontend/        # Interface em React
-├── docker-compose.yml
-└── README.md
-```
-
-## 🚀 Tecnologias Utilizadas
-
-### Backend
-
-- Node.js
-- Fastify
-- TypeScript
-- Prisma (ORM)
-- PostgreSQL
-
-### Frontend
-
-- React
-- TypeScript
-- Tailwind CSS
-- Vite
-
-## ⚙️ Como Executar
-
-1. Clone o repositório:
+Fluxo rápido:
 
 ```bash
-git clone [url-do-repo]
-cd mytinyurl
+docker compose -f docker-compose.dev.yml up --build
+cp apps/frontend/.env.example apps/frontend/.env.local
+npm run dev --workspace @mytinyurl/frontend
 ```
 
-1. Configure o ambiente:
-
-```bash
-# Na pasta backend
-cd apps/backend
-cp .env.example .env
-```
-
-1. Inicie os containers:
-
-```bash
-# Na raiz do projeto
-docker compose up -d
-```
-
-1. Acesse:
+Serviços esperados:
 
 - Frontend: <http://localhost:5173>
 - Backend: <http://localhost:3000>
-- Swagger: <http://localhost:3000/docs>
-- pgAdmin: <http://localhost:5050>
+- Docs da API: <http://localhost:3000/docs>
 
-## 📝 Funcionalidades
+## Deploy recomendado
 
-- Encurtamento de URLs
-- Redirecionamento automático
-- Contagem de cliques
-- Interface responsiva
-- Modo escuro/claro
-- Documentação da API via Swagger
+O alvo mais equilibrado para custo, simplicidade e segurança neste projeto ficou assim:
 
-## 📄 Licença
+- Frontend em Cloudflare Pages.
+- Backend, worker, Redis e Caddy em uma VPS Linux.
+- Banco em duas shards Supabase, uma URL por shard.
+- Orquestração com Docker Swarm de nó único para permitir rollout, rollback e evolução futura.
 
-Este projeto está sob a licença MIT. Veja o arquivo [LICENSE](LICENSE) para mais detalhes.
+Documentação principal:
+
+- Plano de deploy e revisão completa: [docs/deploy_vps_cloudflare_supabase.md](docs/deploy_vps_cloudflare_supabase.md)
+- Arquivos da stack Swarm: [deploy/swarm/stack.yml](deploy/swarm/stack.yml)
+- Bootstrap da VPS: [scripts/bootstrap-vps.sh](scripts/bootstrap-vps.sh)
+- Deploy da stack: [scripts/deploy-swarm.sh](scripts/deploy-swarm.sh)
+
+## Observações importantes
+
+- O backend hoje espera `POST /api/shorten` com `{ "url": "https://..." }`.
+- O frontend em produção deve receber `VITE_API_URL=https://go.seudominio.com/api`.
+- `docker-compose.prod.yml` ficou como fallback simples fora do Swarm. O fluxo principal recomendado está em `deploy/swarm`.
