@@ -1,0 +1,170 @@
+# deploy/monitoring/stack-monitoring.yml
+#
+# Stack de monitoramento leve para a VPS.
+# Deploy separado da stack principal para não acoplar observabilidade ao app.
+#
+# Deploy:
+#   docker stack deploy -c deploy/monitoring/stack-monitoring.yml monitoring
+#
+# Acesso ao Grafana (via túnel SSH — não expõe porta publicamente):
+#   ssh -L 3001:localhost:3001 user@sua-vps
+#   Acesse: http://localhost:3001  (usuário: admin / senha: veja o secret abaixo)
+#
+# Criar o secret da senha do Grafana antes do deploy:
+#   echo "senha-forte-aqui" | docker secret create grafana_admin_password -
+
+services:
+
+  # ── Prometheus (coleta de métricas) ───────────────────────────────────────
+  prometheus:
+    image: prom/prometheus:v3.2.1
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      # Retém dados por 15 dias (ajuste conforme o disco disponível)
+      - '--storage.tsdb.retention.time=15d'
+      - '--web.enable-lifecycle'
+    volumes:
+      - prometheus_data:/prometheus
+    configs:
+      - source: prometheus_config
+        target: /etc/prometheus/prometheus.yml
+    networks:
+      - monitoring
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "5m"
+        max-file: "3"
+    deploy:
+      replicas: 1
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+        reservations:
+          cpus: '0.1'
+          memory: 128M
+      placement:
+        constraints:
+          - node.role == manager
+      restart_policy:
+        condition: any
+
+  # ── Grafana (dashboards) ───────────────────────────────────────────────────
+  grafana:
+    image: grafana/grafana:11.5.2
+    ports:
+      # Acessível APENAS via túnel SSH: ssh -L 3001:localhost:3001 user@vps
+      - target: 3000
+        published: 3001
+        protocol: tcp
+        mode: host
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD__FILE: /run/secrets/grafana_admin_password
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_SERVER_ROOT_URL: "http://localhost:3001"
+      # Datasource do Prometheus pré-configurado
+      GF_DATASOURCES_DEFAULT_URL: "http://prometheus:9090"
+    secrets:
+      - grafana_admin_password
+    volumes:
+      - grafana_data:/var/lib/grafana
+    networks:
+      - monitoring
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "5m"
+        max-file: "3"
+    deploy:
+      replicas: 1
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+        reservations:
+          cpus: '0.1'
+          memory: 64M
+      placement:
+        constraints:
+          - node.role == manager
+      restart_policy:
+        condition: any
+
+  # ── Node Exporter (métricas da VPS: CPU, RAM, disco, rede) ────────────────
+  node-exporter:
+    image: prom/node-exporter:v1.9.1
+    command:
+      - '--path.procfs=/host/proc'
+      - '--path.rootfs=/rootfs'
+      - '--path.sysfs=/host/sys'
+      - '--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)'
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/rootfs:ro
+    networks:
+      - monitoring
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "5m"
+        max-file: "2"
+    deploy:
+      # Roda em todos os nós do Swarm (útil se escalar para multi-nó no futuro)
+      mode: global
+      resources:
+        limits:
+          cpus: '0.2'
+          memory: 64M
+      restart_policy:
+        condition: any
+
+  # ── cAdvisor (métricas de containers Docker) ───────────────────────────────
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor:v0.51.0
+    command:
+      - '--housekeeping_interval=30s'
+      - '--docker_only=true'
+      - '--disable_metrics=accelerator,cpu_topology,disk,hugetlb,memory_numa,percpu,referenced_memory,resctrl,sched,tcp,udp'
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+      - /dev/disk/:/dev/disk:ro
+    networks:
+      - monitoring
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "5m"
+        max-file: "2"
+    deploy:
+      mode: global
+      resources:
+        limits:
+          cpus: '0.3'
+          memory: 128M
+      restart_policy:
+        condition: any
+
+# ── Secrets externos ──────────────────────────────────────────────────────────
+secrets:
+  grafana_admin_password:
+    external: true
+
+configs:
+  prometheus_config:
+    file: ./prometheus.yml
+
+volumes:
+  prometheus_data:
+  grafana_data:
+
+networks:
+  monitoring:
+    driver: overlay
+    attachable: true

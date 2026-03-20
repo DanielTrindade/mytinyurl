@@ -1,0 +1,52 @@
+name: Deploy Frontend → Cloudflare Pages
+
+# Dispara apenas quando há mudanças no frontend ou neste workflow
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'apps/frontend/**'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'turbo.json'
+      - '.github/workflows/deploy-frontend.yml'
+  # Permite disparar manualmente pelo GitHub UI
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    name: Build & Deploy
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      deployments: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Instalar dependências
+        run: npm install
+
+      - name: Build do frontend
+        run: npx turbo run build --filter=@mytinyurl/frontend...
+        env:
+          # URL da API na VPS — configurada como secret no GitHub
+          VITE_API_URL: ${{ secrets.VITE_API_URL }}
+
+      - name: Deploy para Cloudflare Pages
+        uses: cloudflare/pages-action@v1
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          projectName: ${{ secrets.CF_PAGES_PROJECT_NAME }}
+          directory: apps/frontend/dist
+          # Associa o deploy ao commit para rastreabilidade no CF dashboard
+          gitHubToken: ${{ secrets.GITHUB_TOKEN }}

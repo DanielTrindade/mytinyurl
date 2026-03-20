@@ -1,3 +1,16 @@
+# docker-compose.prod.yml
+#
+# Stack de fallback para deploy FORA do Docker Swarm (ex.: VPS sem Swarm ativo,
+# ambiente de homologação ou testes de produção locais).
+#
+# ⚠️  Para produção real, prefira o fluxo:
+#   deploy/swarm/stack.yml + scripts/deploy-swarm.sh
+#
+# Uso:
+#   cp deploy/swarm/.env.example .env.production
+#   # edite .env.production com os valores corretos
+#   docker compose -f docker-compose.prod.yml --env-file .env.production up -d --build
+
 services:
   backend:
     image: mytinyurl-backend:latest
@@ -7,30 +20,36 @@ services:
       target: runner
     restart: always
     environment:
-      - DATABASE_URLS=${DATABASE_URLS}
-      - REDIS_URL=redis://redis:6379
-      - NODE_ENV=production
-      - PORT=3000
-      - APP_URL=${APP_URL}
-      - CORS_ORIGINS=${CORS_ORIGINS}
-      - DEFAULT_EXPIRATION_HOURS=${DEFAULT_EXPIRATION_HOURS:-24}
-      - MACHINE_ID=${MACHINE_ID:-1}
-      - ENABLE_DOCS=${ENABLE_DOCS:-false}
-      - ADMIN_TOKEN=${ADMIN_TOKEN}
-      - BLOCK_PRIVATE_TARGETS=${BLOCK_PRIVATE_TARGETS:-true}
-      - MAX_URL_LENGTH=${MAX_URL_LENGTH:-2048}
-      - MAX_REQUEST_BODY_BYTES=${MAX_REQUEST_BODY_BYTES:-4096}
-      - RATE_LIMIT_WINDOW_SECONDS=${RATE_LIMIT_WINDOW_SECONDS:-60}
-      - RATE_LIMIT_MAX_SHORTEN=${RATE_LIMIT_MAX_SHORTEN:-20}
-      - RATE_LIMIT_MAX_STATS=${RATE_LIMIT_MAX_STATS:-30}
-      - RATE_LIMIT_MAX_REDIRECT=${RATE_LIMIT_MAX_REDIRECT:-300}
-      - RATE_LIMIT_MAX_HEALTH=${RATE_LIMIT_MAX_HEALTH:-60}
+      # Usa DATABASE_URLS (plural) igual ao Swarm — mantém consistência
+      DATABASE_URLS: ${DATABASE_URLS}
+      REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379
+      NODE_ENV: production
+      PORT: 3000
+      APP_URL: ${APP_URL}
+      CORS_ORIGINS: ${CORS_ORIGINS}
+      DEFAULT_EXPIRATION_HOURS: ${DEFAULT_EXPIRATION_HOURS:-24}
+      MACHINE_ID: ${MACHINE_ID:-1}
+      ENABLE_DOCS: ${ENABLE_DOCS:-false}
+      ADMIN_TOKEN: ${ADMIN_TOKEN}
+      BLOCK_PRIVATE_TARGETS: ${BLOCK_PRIVATE_TARGETS:-true}
+      MAX_URL_LENGTH: ${MAX_URL_LENGTH:-2048}
+      MAX_REQUEST_BODY_BYTES: ${MAX_REQUEST_BODY_BYTES:-4096}
+      RATE_LIMIT_WINDOW_SECONDS: ${RATE_LIMIT_WINDOW_SECONDS:-60}
+      RATE_LIMIT_MAX_SHORTEN: ${RATE_LIMIT_MAX_SHORTEN:-20}
+      RATE_LIMIT_MAX_STATS: ${RATE_LIMIT_MAX_STATS:-30}
+      RATE_LIMIT_MAX_REDIRECT: ${RATE_LIMIT_MAX_REDIRECT:-300}
+      RATE_LIMIT_MAX_HEALTH: ${RATE_LIMIT_MAX_HEALTH:-60}
     healthcheck:
-      test: ["CMD", "bun", "-e", "fetch('http://127.0.0.1:3000/health').then((response) => { if (!response.ok) process.exit(1); }).catch(() => process.exit(1));"]
+      test: ["CMD", "bun", "-e", "fetch('http://127.0.0.1:3000/health').then((r) => { if (!r.ok) process.exit(1); }).catch(() => process.exit(1));"]
       interval: 30s
       timeout: 5s
       retries: 3
       start_period: 15s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "5"
     depends_on:
       redis:
         condition: service_healthy
@@ -38,7 +57,7 @@ services:
       - mytinyurl-network
 
   worker:
-    image: mytinyurl-worker:latest
+    image: mytinyurl-backend:latest
     build:
       context: .
       dockerfile: apps/backend/Dockerfile
@@ -46,9 +65,14 @@ services:
     command: ["bun", "run", "src/worker.ts"]
     restart: always
     environment:
-      - DATABASE_URLS=${DATABASE_URLS}
-      - REDIS_URL=redis://redis:6379
-      - NODE_ENV=production
+      DATABASE_URLS: ${DATABASE_URLS}
+      REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379
+      NODE_ENV: production
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "5m"
+        max-file: "3"
     depends_on:
       redis:
         condition: service_healthy
@@ -58,33 +82,50 @@ services:
   redis:
     image: redis:7.4-alpine
     restart: always
-    command: ["redis-server", "--appendonly", "yes", "--save", "60", "1000"]
+    command:
+      - redis-server
+      - --appendonly yes
+      - --save 60 1000
+      - --requirepass ${REDIS_PASSWORD}
+      - --maxmemory 200mb
+      - --maxmemory-policy allkeys-lru
     volumes:
       - redis_data:/data
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
       interval: 10s
       timeout: 3s
       retries: 5
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "5m"
+        max-file: "3"
     networks:
       - mytinyurl-network
 
-  # Caddy acts as a reverse proxy and automatically provisions HTTPS via Let's Encrypt
+  # Caddy como reverse proxy com HTTPS automático via Let's Encrypt
   caddy:
-    image: caddy:2-alpine
+    image: caddy:2.10.2-alpine
     restart: always
     ports:
       - "80:80"
       - "443:443"
     environment:
-      - APP_DOMAIN=${APP_DOMAIN}
-      - LETSENCRYPT_EMAIL=${LETSENCRYPT_EMAIL}
+      APP_DOMAIN: ${APP_DOMAIN}
+      LETSENCRYPT_EMAIL: ${LETSENCRYPT_EMAIL}
     volumes:
-      - ./Caddyfile:/etc/caddy/Caddyfile
+      - ./deploy/swarm/Caddyfile:/etc/caddy/Caddyfile
       - caddy_data:/data
       - caddy_config:/config
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "5"
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
     networks:
       - mytinyurl-network
 

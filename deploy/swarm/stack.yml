@@ -1,4 +1,18 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Docker Swarm Stack — MyTinyURL
+#
+# Secrets externos (criar na VPS antes do primeiro deploy):
+#   echo "valor" | docker secret create admin_token -
+#   echo "postgresql://..." | docker secret create database_urls -
+#   echo "senha-redis-forte" | docker secret create redis_password -
+#
+# O entrypoint do backend lê /run/secrets/* e exporta como env vars
+# antes de iniciar a aplicação.
+# ─────────────────────────────────────────────────────────────────────────────
+
 services:
+
+  # ── Caddy (edge / HTTPS) ───────────────────────────────────────────────────
   caddy:
     image: caddy:2.10.2-alpine
     ports:
@@ -22,8 +36,20 @@ services:
     networks:
       - edge
       - app
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "5"
     deploy:
       replicas: 1
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 128M
+        reservations:
+          cpus: '0.1'
+          memory: 64M
       placement:
         constraints:
           - node.role == manager
@@ -35,11 +61,12 @@ services:
       rollback_config:
         order: stop-first
 
+  # ── Backend (API pública) ──────────────────────────────────────────────────
   backend:
     image: ${BACKEND_IMAGE}
     environment:
-      DATABASE_URLS: ${DATABASE_URLS}
-      REDIS_URL: redis://redis:6379
+      # Valores não-sensíveis passados diretamente
+      REDIS_URL: redis://redis:6379   # senha injetada pelo entrypoint via REDIS_PASSWORD secret
       NODE_ENV: production
       PORT: 3000
       APP_URL: ${APP_URL}
@@ -47,7 +74,6 @@ services:
       DEFAULT_EXPIRATION_HOURS: ${DEFAULT_EXPIRATION_HOURS}
       MACHINE_ID: ${MACHINE_ID}
       ENABLE_DOCS: ${ENABLE_DOCS}
-      ADMIN_TOKEN: ${ADMIN_TOKEN}
       BLOCK_PRIVATE_TARGETS: ${BLOCK_PRIVATE_TARGETS}
       MAX_URL_LENGTH: ${MAX_URL_LENGTH}
       MAX_REQUEST_BODY_BYTES: ${MAX_REQUEST_BODY_BYTES}
@@ -56,10 +82,33 @@ services:
       RATE_LIMIT_MAX_STATS: ${RATE_LIMIT_MAX_STATS}
       RATE_LIMIT_MAX_REDIRECT: ${RATE_LIMIT_MAX_REDIRECT}
       RATE_LIMIT_MAX_HEALTH: ${RATE_LIMIT_MAX_HEALTH}
+      # ADMIN_TOKEN e DATABASE_URLS são injetados pelo entrypoint via Docker Secrets
+    secrets:
+      - admin_token
+      - database_urls
+      - redis_password
     networks:
       - app
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "5"
+    healthcheck:
+      test: ["CMD", "bun", "-e", "fetch('http://127.0.0.1:3000/health').then((r) => { if (!r.ok) process.exit(1); }).catch(() => process.exit(1));"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
     deploy:
       replicas: ${BACKEND_REPLICAS}
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 512M
+        reservations:
+          cpus: '0.25'
+          memory: 128M
       restart_policy:
         condition: any
       update_config:
@@ -67,24 +116,33 @@ services:
         failure_action: rollback
       rollback_config:
         order: stop-first
-    healthcheck:
-      test: ["CMD", "bun", "-e", "fetch('http://127.0.0.1:3000/health').then((response) => { if (!response.ok) process.exit(1); }).catch(() => process.exit(1));"]
-      interval: 30s
-      timeout: 5s
-      retries: 3
-      start_period: 15s
 
+  # ── Worker (analytics) ─────────────────────────────────────────────────────
   worker:
     image: ${BACKEND_IMAGE}
     command: ["bun", "run", "src/worker.ts"]
     environment:
-      DATABASE_URLS: ${DATABASE_URLS}
       REDIS_URL: redis://redis:6379
       NODE_ENV: production
+    secrets:
+      - database_urls
+      - redis_password
     networks:
       - app
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "5m"
+        max-file: "3"
     deploy:
       replicas: ${WORKER_REPLICAS}
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+        reservations:
+          cpus: '0.1'
+          memory: 64M
       restart_policy:
         condition: any
       update_config:
@@ -93,25 +151,59 @@ services:
       rollback_config:
         order: stop-first
 
+  # ── Redis (cache + fila) ───────────────────────────────────────────────────
   redis:
     image: redis:7.4-alpine
-    command: ["redis-server", "--appendonly", "yes", "--save", "60", "1000"]
+    # Lê a senha do secret e inicializa o Redis com autenticação e limite de memória
+    command:
+      - sh
+      - -c
+      - |
+        redis-server \
+          --appendonly yes \
+          --save 60 1000 \
+          --requirepass "$$(cat /run/secrets/redis_password)" \
+          --maxmemory 200mb \
+          --maxmemory-policy allkeys-lru
+    secrets:
+      - redis_password
     volumes:
       - redis_data:/data
     networks:
       - app
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "5m"
+        max-file: "3"
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "$(cat /run/secrets/redis_password)", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
     deploy:
       replicas: 1
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+        reservations:
+          cpus: '0.1'
+          memory: 64M
       placement:
         constraints:
           - node.role == manager
       restart_policy:
         condition: any
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 10s
-      timeout: 3s
-      retries: 5
+
+# ── Secrets externos (criados manualmente na VPS) ─────────────────────────────
+secrets:
+  admin_token:
+    external: true
+  database_urls:
+    external: true
+  redis_password:
+    external: true
 
 configs:
   caddyfile:
